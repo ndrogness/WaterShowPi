@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 #from time import sleep
 
@@ -52,7 +52,7 @@ def InitSolendois ():
       GPIO.setup(Solenoids[i][S_GPIO], GPIO.OUT)
       GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
 
-  print SD
+  print (SD)
 #time.sleep(2.0);
 
 #######################################
@@ -110,20 +110,20 @@ def PrintLayout (ShowStatus=True):
     #print '       ---------------' 
 
   os.system("clear")
-  print '       ---------------' 
-  print '      -               -' 
-  print '     -                 -' 
-  print '  ',DS[1],'                  ',DS[2]
-  print '  -                       -' 
-  print Line5
-  print '-                           -' 
-  print Line7
-  print '  -                       -' 
-  print '  ',DS[3],'                  ',DS[4]
-  print '     -       ',DS[0],'       -' 
-  print '      -               -' 
-  print '       ---------------' 
-  print '         Time:',CurTime
+  print('       ---------------' )
+  print('      -               -' )
+  print('     -                 -' )
+  print('  ',DS[1],'                  ',DS[2])
+  print('  -                       -' )
+  print(Line5)
+  print('-                           -' )
+  print(Line7)
+  print('  -                       -' )
+  print('  ',DS[3],'                  ',DS[4])
+  print('     -       ',DS[0],'       -' )
+  print('      -               -' )
+  print('       ---------------' )
+  print('         Time:',CurTime)
 
     
 #######################################
@@ -155,8 +155,8 @@ def SolenoidSend(SolenoidsNextState) :
 
   for i in range (0,9) :
     if Solenoids[i][S_ENABLED] and Solenoids[i][S_NAME] in SolenoidsNextState :
-      if Solenoids[i][S_STATE] <> SolenoidsNextState[Solenoids[i][S_NAME]] :
-        print "Changing state from",Solenoids[i][S_STATE]," to",SolenoidsNextState[Solenoids[i][S_NAME]]
+      if Solenoids[i][S_STATE] != SolenoidsNextState[Solenoids[i][S_NAME]] :
+        print("Changing state from",Solenoids[i][S_STATE]," to",SolenoidsNextState[Solenoids[i][S_NAME]])
         
 
 #######################################
@@ -174,7 +174,7 @@ def SequenceProcessor() :
   
   for i in range(0,len(SequenceData)):
     NextPattern=SequenceData[i].split("|")
-    print NextPattern
+    print(NextPattern)
     if NextPattern[1] == 'Pulse' :
       Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
 
@@ -191,7 +191,7 @@ def CleanExit():
 
 #######################################
 def Usage():
-  print "watershow sequncefile audiofile"
+  print("watershow sequncefile audiofile")
   exit()
 
 #######################################

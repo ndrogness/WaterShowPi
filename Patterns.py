@@ -25,6 +25,6 @@ def Pulse(PulseOptionsString,SolenoidMatrix,Solenoids,TimeSequence) :
     if PulseOption[0] == 'gap' :
       PulseGap=PulseOption[1]
 
-  print "Pulse received with string:",SolenoidMatrix
-  print Solenoids
+  print("Pulse received with string:",SolenoidMatrix)
+  print(Solenoids)
 ######################################################
