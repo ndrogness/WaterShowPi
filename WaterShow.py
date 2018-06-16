@@ -61,6 +61,8 @@ def InitSolendois ():
 def PrintLayout (ShowStatus=True):
 
   DS=[]
+  Line5=""
+  Line7=""
 
   if ShowStatus:
     for i in range(0,5):
@@ -129,7 +131,7 @@ def PrintLayout (ShowStatus=True):
 #######################################
 def ServoSetAngle(angle):
 
-	duty = angle / 18 + 2
+    duty = angle / 18 + 2
 	GPIO.output(03, True)
 	pwm.ChangeDutyCycle(duty)
 	sleep(1)
