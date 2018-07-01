@@ -23,15 +23,15 @@ V_CLOSE=1
 
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
-S0 = ['S0',True,23]
-S1 = ['S1',True,2]
-S2 = ['S2',True,3]
-S3 = ['S3',True,4]
-S4 = ['S4',True,17]
-S5 = ['S5',True,27]
-S6 = ['S6',True,22]
-S7 = ['S7',True,10]
-S8 = ['S8',True,9]
+S0 = ['S0',True,10]
+S1 = ['S1',True,9]
+S2 = ['S2',True,11]
+S3 = ['S3',True,5]
+S4 = ['S4',True,6]
+S5 = ['S5',True,13]
+S6 = ['S6',True,19]
+S7 = ['S7',True,26]
+S8 = ['S8',True,40]
 
 Solenoids = [S0,S1,S2,S3,S4,S5,S6,S7,S8]
 SD=dict()
