@@ -9,8 +9,9 @@ import random
 #For Pi 1
 #Solenoids=[2,3,4,17,27,22,10,9]
 #For Pi 3
-Solenoids=[10,9,11]
-DelayBetween=3
+Solenoids=[10,9,11,5,6,13,19,26,40]
+
+DelayBetween=2
 S_OFF=1
 S_ON=0
 
