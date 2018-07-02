@@ -24,6 +24,7 @@ GPIO.setmode(GPIO.BCM)
 
 NumSolenoids=len(Solenoids)
 print "Num Solendoids:",NumSolenoids
+exit
 
 for i in range(len(Solenoids)):
   GPIO.setup(Solenoids[i], GPIO.OUT)

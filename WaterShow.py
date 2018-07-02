@@ -30,18 +30,28 @@ S3 = ['S3',True,5]
 S4 = ['S4',True,6]
 S5 = ['S5',True,13]
 S6 = ['S6',True,19]
-S7 = ['S7',True,26]
-S8 = ['S8',True,40]
 
-Solenoids = [S0,S1,S2,S3,S4,S5,S6,S7,S8]
+Solenoids = [S0,S1,S2,S3,S4,S5,S6]
+NumSolenoids=len(Solenoids)
 SD=dict()
+
+
 #############################################
-def InitSolendois ():
+def button_callback(channel):
+    print("Button was pushed!")
+
+
+#############################################
+def InitGPIO ():
 
   # for GPIO numbering, choose BCM  
   GPIO.setmode(GPIO.BCM)  
 
-  for i in range(0,9):
+  # Button Push to roll
+  GPIO.setup(18,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
+  GPIO.add_event_detect(18,GPIO.RISING,callback=button_callback) # Setup event on pin 18 rising edge
+
+  for i in range(0,NumSolenoids):
     # Add CurrentStatus and DoToggle
     Solenoids[i].extend([V_CLOSE,False]) 
 
@@ -71,29 +81,21 @@ def PrintLayout (ShowStatus=True):
       else :
         DS.insert(i,'X')
 
-    if Solenoids[5][S_STATUS] == V_OPEN and Solenoids[6][S_STATUS] == V_CLOSE :
-      Line5=' -    O->^->^->^->^--X     -'
-    elif Solenoids[5][S_STATUS] == V_CLOSE and Solenoids[6][S_STATUS] == V_OPEN :
-      Line5=' -    X--^<-^<-^<-^<-O     -'
-    elif Solenoids[5][S_STATUS] == V_OPEN and Solenoids[6][S_STATUS] == V_OPEN :
-      Line5=' -    O->^->^><^<-^<-O     -'
-    elif Solenoids[5][S_STATUS] == V_CLOSE and Solenoids[6][S_STATUS] == V_CLOSE :
-      Line5=' -    X--*--*--*--*--X     -'
+    if Solenoids[5][S_STATUS] == V_OPEN :
+      Line5=' -    O->^->^->^->^--*     -'
+    else :
+      Line5=' -    X--*--*--*--*--*     -'
 
-    if Solenoids[7][S_STATUS] == V_OPEN and Solenoids[8][S_STATUS] == V_CLOSE :
-      Line7=' -    O->^->^->^->^--X     -'
-    elif Solenoids[7][S_STATUS] == V_CLOSE and Solenoids[8][S_STATUS] == V_OPEN :
-      Line7=' -    X--^<-^<-^<-^<-O     -'
-    elif Solenoids[7][S_STATUS] == V_OPEN and Solenoids[8][S_STATUS] == V_OPEN :
-      Line7=' -    O->^->^><^<-^<-O     -'
-    elif Solenoids[7][S_STATUS] == V_CLOSE and Solenoids[8][S_STATUS] == V_CLOSE :
-      Line7=' -    X--*--*--*--*--X     -'
+    if Solenoids[6][S_STATUS] == V_OPEN :
+      Line7=' -    *--^<-^<-^<-^<-O     -'
+    else :
+      Line7=' -    *--*--*--*--*--X     -'
 
   else :
     for i in range(0,5):
       DS.insert(i,Solenoids[i][0])
-    Line5=' -   S5--*--*--*--*--S6    -'
-    Line7=' -   S7--*--*--*--*--S8    -'
+    Line5=' -   S5--*--*--*--*---*    -'
+    Line7=' -   *---*--*--*--*--S6    -'
 
     #print '       ---------------' 
     #print '      -               -' 
@@ -153,7 +155,7 @@ pwm.ChangeDutyCycle(0)
 #######################################
 def SolenoidSend(SolenoidsNextState) :
 
-  for i in range (0,9) :
+  for i in range (0,NumSolenoids) :
     if Solenoids[i][S_ENABLED] and Solenoids[i][S_NAME] in SolenoidsNextState :
       if Solenoids[i][S_STATE] != SolenoidsNextState[Solenoids[i][S_NAME]] :
         print("Changing state from",Solenoids[i][S_STATE]," to",SolenoidsNextState[Solenoids[i][S_NAME]])
@@ -183,7 +185,7 @@ def SequenceProcessor() :
 #######################################
 def CleanExit():
 
-  #GPIO.cleanup()
+  GPIO.cleanup()
   pygame.mixer.stop()
   pygame.mixer.quit()
   exit()
@@ -210,7 +212,7 @@ with open(sys.argv[1],'r') as SequenceFile:
   SequenceData = SequenceFile.read().splitlines()
 del SequenceData[0]
 
-InitSolendois()
+InitGPIO()
 
 # Read Sequence file and process it
 Pattern=[]
@@ -225,25 +227,21 @@ StartTime = int(round(time.time()*1000))
 step       = 1 #ignore the header line
 CurTime = 0
 
-while CurTime < 210000 :
+try:
 
-  CurTime = int(round(time.time()*1000)) - StartTime
-  #print StartTime
-  #print CurTime
-  fun=CurTime % 8
-  Solenoids[fun][S_STATUS]=V_OPEN
-  GPIO.output(Solenoids[fun][S_GPIO],V_OPEN)
-  PrintLayout()
-  Solenoids[fun][S_STATUS]=V_CLOSE
-  GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
-  time.sleep(.500)
+  while CurTime < 210000 :
 
-  
-
-CleanExit()
-
-#print Solenoids
-#GPIO.setmode(GPIO.BCM)
+    CurTime = int(round(time.time()*1000)) - StartTime
+    #print StartTime
+    #print CurTime
+    fun=CurTime % NumSolenoids
+    Solenoids[fun][S_STATUS]=V_OPEN
+    GPIO.output(Solenoids[fun][S_GPIO],V_OPEN)
+    PrintLayout()
+    Solenoids[fun][S_STATUS]=V_CLOSE
+    GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
+    time.sleep(.500)
 
 
-
+except KeyboardInterrupt:
+  CleanExit()
