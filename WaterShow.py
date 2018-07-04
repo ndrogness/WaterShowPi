@@ -2,7 +2,7 @@
 
 #from time import sleep
 
-import RPi.GPIO as GPIO, time
+import RPi.GPIO as GPIO
 import sys
 import time
 import pygame
@@ -193,14 +193,41 @@ def CleanExit():
 
 #######################################
 def Usage():
-  print("watershow sequncefile audiofile")
+  print("WaterShowPi.py Directory")
   exit()
 
 #######################################
 
-if len(sys.argv) < 3 :
+if len(sys.argv) < 2 :
   Usage()
 
+WaterShowDir = []
+if (sys.argv[1][len(sys.argv[1])-1] == '/') :
+    WaterShowDir = sys.argv[1][0:len(sys.argv[1])-1]
+else :
+  WaterShowDir = sys.argv[1]
+  
+WaterShowFile_FFT = WaterShowDir + "/" + WaterShowDir + ".fft"
+WaterShowFile_Sequence = WaterShowDir + "/" + WaterShowDir + ".seq"
+WaterShowFile_Audio = WaterShowDir + "/" + WaterShowDir + ".wav"
+
+if os.path.exists(WaterShowFile_FFT) :
+  print ("FFT file is: ",WaterShowFile_FFT)
+else :
+  print ("Not a FFT file: ",WaterShowFile_FFT) 
+  exit()
+
+if os.path.exists(WaterShowFile_Sequence) :
+  print ("Sequence file is: ",WaterShowFile_Sequence)
+else :
+  print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
+  exit()
+
+if os.path.exists(WaterShowFile_Audio) :
+  print ("Audio file is: ",WaterShowFile_Audio)
+else :
+  print ("Not a valid Audio File: ",WaterShowFile_Audio) 
+  exit()
 
 #Solenoids[1][S_STATUS]=V_CLOSE
 #Solenoids[2][S_STATUS]=V_OPEN
@@ -208,7 +235,7 @@ if len(sys.argv) < 3 :
 #Solenoids[4][S_STATUS]=V_OPEN
 #PrintLayout(False)
 
-with open(sys.argv[1],'r') as SequenceFile:
+with open(WaterShowFile_Sequence,'r') as SequenceFile:
   SequenceData = SequenceFile.read().splitlines()
 del SequenceData[0]
 
@@ -220,7 +247,7 @@ SequenceProcessor()
 #exit()
 
 pygame.mixer.init()
-pygame.mixer.music.load(sys.argv[2])
+pygame.mixer.music.load(WaterShowFile_Audio)
 pygame.mixer.music.play()
 
 StartTime = int(round(time.time()*1000))
