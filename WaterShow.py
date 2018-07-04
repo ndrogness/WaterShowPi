@@ -8,6 +8,9 @@ import time
 import pygame
 import random
 import os
+import alsaaudio as aa
+import wave
+import numpy as np
 import Patterns
 
 
@@ -181,13 +184,35 @@ def SequenceProcessor() :
       Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
 
 
-
 #######################################
-def CleanExit():
+def WaterShowStart():
+
+  # Set up audio
+  WavFile = wave.open(WaterShowFile_Audio,'r')
+  sample_rate = WavFile.getframerate()
+  no_channels = WavFile.getnchannels()
+  chunk       = 4096 # Use a multiple of 8
+  AudioOutput = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL)
+  AudioOutput.setchannels(no_channels)
+  AudioOutput.setrate(sample_rate)
+  AudioOutput.setformat(aa.PCM_FORMAT_S16_LE)
+  AudioOutput.setperiodsize(chunk)
+
+  WavData = WavFile.readframes(chunk)
+  StartTime = int(round(time.time()*1000))
+  step       = 1 #ignore the header line
+  CurTime = 0
+
+  while WavData != '':
+    AudioOutput.write(WavData)
+    print ("Processing Chunk")
+  
+#######################################
+def HardCleanExit():
 
   GPIO.cleanup()
-  pygame.mixer.stop()
-  pygame.mixer.quit()
+  #pygame.mixer.stop()
+  #pygame.mixer.quit()
   exit()
   
 
@@ -246,29 +271,27 @@ Pattern=[]
 SequenceProcessor() 
 #exit()
 
-pygame.mixer.init()
-pygame.mixer.music.load(WaterShowFile_Audio)
-pygame.mixer.music.play()
+#pygame.mixer.init()
+#pygame.mixer.music.load(WaterShowFile_Audio)
+#pygame.mixer.music.play()
 
-StartTime = int(round(time.time()*1000))
-step       = 1 #ignore the header line
-CurTime = 0
 
 try:
+#
+#  while CurTime < 210000 :
+#
+#    CurTime = int(round(time.time()*1000)) - StartTime
+#    #print StartTime
+#    #print CurTime
+#    fun=CurTime % NumSolenoids
+#    Solenoids[fun][S_STATUS]=V_OPEN
+#    GPIO.output(Solenoids[fun][S_GPIO],V_OPEN)
+#    PrintLayout()
+#    Solenoids[fun][S_STATUS]=V_CLOSE
+#    GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
+#    time.sleep(.500)
 
-  while CurTime < 210000 :
-
-    CurTime = int(round(time.time()*1000)) - StartTime
-    #print StartTime
-    #print CurTime
-    fun=CurTime % NumSolenoids
-    Solenoids[fun][S_STATUS]=V_OPEN
-    GPIO.output(Solenoids[fun][S_GPIO],V_OPEN)
-    PrintLayout()
-    Solenoids[fun][S_STATUS]=V_CLOSE
-    GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
-    time.sleep(.500)
-
+  WaterShowStart()
 
 except KeyboardInterrupt:
-  CleanExit()
+  HardCleanExit()
