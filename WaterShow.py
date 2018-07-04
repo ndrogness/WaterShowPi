@@ -206,6 +206,7 @@ def WaterShowStart():
   while WavData != '':
     AudioOutput.write(WavData)
     print ("Processing Chunk")
+    WavData = WavFile.readframes(chunk)
   
 #######################################
 def HardCleanExit():
