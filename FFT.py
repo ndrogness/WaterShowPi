@@ -10,10 +10,6 @@ import sys
 import time
 import os
 
-def Set_Column(row, col):
-	bus.write_byte_data(ADDR, BANKA, col)
-	bus.write_byte_data(ADDR, BANKB, row)
-			
 # Initialise matrix
 matrix    = [0,0,0,0,0,0,0,0]
 power     = []
@@ -57,7 +53,7 @@ def calculate_levels(data, chunk,sample_rate):
 	#matrix[6]= int(np.mean(power[piff(5000,chunk,sample_rate) :piff(10000,chunk,sample_rate):1]))
 	#matrix[7]= int(np.mean(power[piff(10000,chunk,sample_rate):piff(20000,chunk,sample_rate):1]))
 
-	matrix[0]= int(np.mean(power[int(c2*0/sample_rate     :int(c2*156/sample_rate):1]))
+	matrix[0]= int(np.mean(power[int(c2*0/sample_rate)    :int(c2*156/sample_rate):1]))
 	matrix[1]= int(np.mean(power[int(c2*156/sample_rate)  :int(c2*313/sample_rate):1]))
 	matrix[2]= int(np.mean(power[int(c2*313/sample_rate)  :int(c2*625/sample_rate):1]))
 	matrix[3]= int(np.mean(power[int(c2*625/sample_rate)  :int(c2*1250/sample_rate):1]))
@@ -100,7 +96,6 @@ while data!='':
   	CurTime = int(round(time.time()*1000)) - StartTime
 	output.write(data)	
 	matrix=calculate_levels(data, chunk,sample_rate)
-	#print matrix[0],matrix[1]
 
 	#if (step%2) == 0:
 	#  PrintMatrix(matrix)

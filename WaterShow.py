@@ -24,6 +24,9 @@ S_TOGGLE=4
 V_OPEN=0
 V_CLOSE=1
 
+#       [IsRunning,LastPushButtonTime]
+STATE = {'ISRUNNING':False,'PUSHBUTTON_LASTTIME':int(round(time.time()*1000))}
+print (STATE)
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
 S0 = ['S0',True,10]
@@ -40,8 +43,21 @@ SD=dict()
 
 
 #############################################
-def button_callback(channel):
-    print("Button was pushed!")
+def PushButton_Callback(channel):
+
+
+  PushButtonTime=int(round(time.time()*1000))
+  #print (STATE,PushButtonTime)
+
+  if not STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
+    print("Starting WaterShow at time: ",PushButtonTime)
+    STATE['ISRUNNING']=True
+    STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
+
+  if STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
+    print("Stopping WaterShow at time: ",PushButtonTime)
+    STATE['ISRUNNING']=False
+    STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
 
 
 #############################################
@@ -50,9 +66,10 @@ def InitGPIO ():
   # for GPIO numbering, choose BCM  
   GPIO.setmode(GPIO.BCM)  
 
-  # Button Push to roll
-  GPIO.setup(18,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
-  GPIO.add_event_detect(18,GPIO.RISING,callback=button_callback) # Setup event on pin 18 rising edge
+  # Button Push to roll on GPIO14 (pin 8 rising edge)
+  GPIO.setup(14,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
+  # Setup event on for detecting push button
+  GPIO.add_event_detect(14,GPIO.RISING,callback=PushButton_Callback) 
 
   for i in range(0,NumSolenoids):
     # Add CurrentStatus and DoToggle
@@ -63,12 +80,22 @@ def InitGPIO ():
       #print 'Enabling S',i 
       SD[Solenoids[i][S_NAME]]=i
       GPIO.setup(Solenoids[i][S_GPIO], GPIO.OUT)
-      GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
 
   print (SD)
 #time.sleep(2.0);
 
 #######################################
+
+#############################################
+def InitSolenoids ():
+
+  GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
+  Solenoids[0][S_STATUS]=V_OPEN
+
+  for i in range(1,NumSolenoids):
+    if Solenoids[i][S_ENABLED]:
+      GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
+      Solenoids[i][S_STATUS]=V_CLOSE
 
 #######################################
 def PrintLayout (ShowStatus=True):
@@ -158,7 +185,7 @@ pwm.ChangeDutyCycle(0)
 #######################################
 def SolenoidSend(SolenoidsNextState) :
 
-  for i in range (0,NumSolenoids) :
+  for i in range (1,NumSolenoids) :
     if Solenoids[i][S_ENABLED] and Solenoids[i][S_NAME] in SolenoidsNextState :
       if Solenoids[i][S_STATE] != SolenoidsNextState[Solenoids[i][S_NAME]] :
         print("Changing state from",Solenoids[i][S_STATE]," to",SolenoidsNextState[Solenoids[i][S_NAME]])
@@ -184,6 +211,7 @@ def SequenceProcessor() :
       Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
 
 
+
 #######################################
 def WaterShowStart():
 
@@ -203,10 +231,22 @@ def WaterShowStart():
   step       = 1 #ignore the header line
   CurTime = 0
 
-  while WavData != '':
+  while WavData != '' and STATE['ISRUNNING']:
     AudioOutput.write(WavData)
-    print ("Processing Chunk")
     WavData = WavFile.readframes(chunk)
+
+  AudioOutput.close() 
+  WavFile.close()
+  InitSolenoids()
+ 
+#######################################
+def WaterShowStop ():
+
+  for i in range(0,NumSolenoids):
+    # Add CurrentStatus and DoToggle
+    Solenoids[i].extend([V_CLOSE,False]) 
+  #pygame.mixer.stop()
+  #pygame.mixer.quit()
   
 #######################################
 def HardCleanExit():
@@ -266,6 +306,7 @@ with open(WaterShowFile_Sequence,'r') as SequenceFile:
 del SequenceData[0]
 
 InitGPIO()
+InitSolenoids()
 
 # Read Sequence file and process it
 Pattern=[]
@@ -292,7 +333,12 @@ try:
 #    GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
 #    time.sleep(.500)
 
-  WaterShowStart()
+#  WaterShowStart()
+
+  while True:
+    if (STATE['ISRUNNING']) :
+      WaterShowStart()
+    time.sleep(1)
 
 except KeyboardInterrupt:
   HardCleanExit()
