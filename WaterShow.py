@@ -21,6 +21,11 @@ S_GPIO=2
 S_STATUS=3
 S_TOGGLE=4
 
+P_STATE=0
+P_GPIO=1
+P_RUN=0
+P_STOP=1
+
 V_OPEN=0
 V_CLOSE=1
 
@@ -29,13 +34,16 @@ STATE = {'ISRUNNING':False,'PUSHBUTTON_LASTTIME':int(round(time.time()*1000))}
 print (STATE)
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
-S0 = ['S0',True,10]
-S1 = ['S1',True,9]
-S2 = ['S2',True,11]
-S3 = ['S3',True,5]
-S4 = ['S4',True,6]
-S5 = ['S5',True,13]
-S6 = ['S6',True,19]
+S0 = ['S0',True,17]
+S1 = ['S1',True,27]
+S2 = ['S2',True,22]
+S3 = ['S3',True,10]
+S4 = ['S4',True,9]
+S5 = ['S5',True,11]
+S6 = ['S6',True,13]
+
+#      [IsRunning {True|False},,GPIO]
+Pump = [False,23]
 
 Solenoids = [S0,S1,S2,S3,S4,S5,S6]
 NumSolenoids=len(Solenoids)
@@ -70,6 +78,9 @@ def InitGPIO ():
   GPIO.setup(14,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
   # Setup event on for detecting push button
   GPIO.add_event_detect(14,GPIO.RISING,callback=PushButton_Callback) 
+
+  # Setup Pump GPIO
+  GPIO.setup(Pump[P_GPIO], GPIO.OUT)
 
   for i in range(0,NumSolenoids):
     # Add CurrentStatus and DoToggle
@@ -213,8 +224,24 @@ def SequenceProcessor() :
 
 
 #######################################
+def PumpCtl (RunPump):
+
+  if RunPump and not Pump[P_STATE]:
+    GPIO.output(Pump[P_GPIO], P_RUN)
+    Pump[P_STATE]=True
+
+  if not RunPump and Pump[P_STATE]:
+    GPIO.output(Pump[P_GPIO], P_STOP)
+    Pump[P_STATE]=False
+     
+#######################################
 def WaterShowStart():
 
+  # Start pump
+  if not Pump[P_STATE]:
+    PumpCtl(True)
+    time.sleep(2)
+    
   # Set up audio
   WavFile = wave.open(WaterShowFile_Audio,'r')
   sample_rate = WavFile.getframerate()
