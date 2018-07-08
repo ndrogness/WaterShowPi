@@ -22,7 +22,11 @@ S_GPIO=2
 S_STATUS=3
 S_TOGGLE=4
 
-PumpStartupDelay=2
+PumpColdStartDelay=5
+PumpWarmStartDelay=4
+#RunVolume=100
+RunVolume=75
+
 P_STATE=0
 P_GPIO=1
 P_RUN=0
@@ -49,12 +53,12 @@ S4 = ['S4',True,9]
 S5 = ['S5',True,11]
 S6 = ['S6',True,13]
 
-BassSolenoids=[1,2,3,4]
+BassSolenoids=[3,4]
 ChorusSolenoids=[5,6]
 
-BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':400,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
+BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':250,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
 
-CHORUS={'FreqIndex':2, 'IntesityMinTrigger':8,'Solenoids':ChorusSolenoids,'MinCycleInterval':2000,'MaxConseqCycles': 5, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0,'IsRunning':False}
+CHORUS={'FreqIndex':2, 'IntesityMinTrigger':8,'Solenoids':ChorusSolenoids,'MinCycleInterval':2000,'MaxConseqCycles': 10, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0,'IsRunning':False}
 
 #      [IsRunning {True|False},GPIO]
 Pump = [False,23]
@@ -70,9 +74,14 @@ SD=dict()
 #############################################
 def PushButton_Callback(channel):
 
+  return
+
+#############################################
+def OrigPushButton_Callback(channel):
+
 
   PushButtonTime=int(round(time.time()*1000))
-  #print (STATE,PushButtonTime)
+  print (STATE,PushButtonTime)
 
   if not STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
     print("Starting WaterShow at time: ",PushButtonTime)
@@ -220,20 +229,40 @@ def SolenoidSend(SolenoidX,NewState) :
   for i in range(1,NumSolenoids):
     if i == SolenoidX:
       if NewState == V_CLOSE and Solenoids[SolenoidX][S_STATUS] != V_CLOSE:
-        #print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_CLOSE)
+        print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_CLOSE)
         GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
         Solenoids[SolenoidX][S_STATUS]=V_CLOSE
+        if i == 3:
+          GPIO.output(Solenoids[1][S_GPIO], V_CLOSE)
+          Solenoids[1][S_STATUS]=V_CLOSE
+
+        if i == 4:
+          GPIO.output(Solenoids[2][S_GPIO], V_CLOSE)
+          Solenoids[2][S_STATUS]=V_CLOSE
         
       if NewState == V_OPEN and Solenoids[SolenoidX][S_STATUS] != V_OPEN:
         #print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_OPEN)
         GPIO.output(Solenoids[SolenoidX][S_GPIO], V_OPEN)
         Solenoids[SolenoidX][S_STATUS]=V_OPEN
+        #time.sleep(.250)
+        #GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
+        #Solenoids[SolenoidX][S_STATUS]=V_CLOSE
+
+        if i == 3:
+          GPIO.output(Solenoids[1][S_GPIO], V_OPEN)
+          Solenoids[1][S_STATUS]=V_OPEN
+        if i == 4:
+          GPIO.output(Solenoids[2][S_GPIO], V_OPEN)
+          Solenoids[2][S_STATUS]=V_OPEN
 
     elif NewState == V_OPEN:
       GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
       Solenoids[i][S_STATUS]=V_CLOSE
 
   BackPressure=True        
+  #GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
+  #Solenoids[0][S_STATUS]=V_OPEN
+
   for i in range (1,NumSolenoids) :
     if Solenoids[i][S_STATUS] == V_OPEN:
       BackPressure=False
@@ -277,8 +306,14 @@ def PumpCtl (RunPump):
 
   if RunPump and not Pump[P_STATE]:
     GPIO.output(Pump[P_GPIO], P_RUN)
-    print ("Starting Pump...")
-    time.sleep(PumpStartupDelay)
+
+    if (STATE['ISRUNNING']):
+      print ("Starting Pump...Delaying:",PumpWarmStartDelay)
+      time.sleep(PumpWarmStartDelay)
+    else:
+      print ("Starting Pump...Delaying:",PumpColdStartDelay)
+      time.sleep(PumpColdStartDelay)
+
     Pump[P_STATE]=True
 
   if not RunPump and Pump[P_STATE]:
@@ -409,6 +444,11 @@ def WaterShowStart():
     PumpCtl(True)
     
   # Set up audio
+  AudioMixer = aa.Mixer()
+  vol = AudioMixer.getvolume()
+  AudioVolume = int(vol[0])
+  AudioMixer.setvolume(RunVolume)
+
   WavFile = wave.open(WaterShowFile_Audio,'r')
   sample_rate = WavFile.getframerate()
   no_channels = WavFile.getnchannels()
@@ -427,7 +467,7 @@ def WaterShowStart():
   while sys.getsizeof(WavData) > 16000 and STATE['ISRUNNING']:
     WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
     CurTime = int(round(time.time()*1000)) - StartTime
-    #print(WavChunkIntensity)
+    print(WavChunkIntensity)
     IntensitySend(WavChunkIntensity,CurTime)
     AudioOutput.write(WavData)
     WavData = WavFile.readframes(chunk)
@@ -441,6 +481,7 @@ def WaterShowStart():
   CHORUS['CurCycleCount']=0
   #STATE['ISRUNNING']=False
   AudioOutput.close() 
+  AudioMixer.setvolume(AudioVolume)
   WavFile.close()
   PumpCtl(False)
   InitSolenoids()
@@ -487,13 +528,18 @@ if os.path.exists(WaterShowFile_FFT) :
   print ("FFT file is: ",WaterShowFile_FFT)
 else :
   print ("Not a FFT file: ",WaterShowFile_FFT) 
-  exit()
+  #exit()
 
 if os.path.exists(WaterShowFile_Sequence) :
   print ("Sequence file is: ",WaterShowFile_Sequence)
+  with open(WaterShowFile_Sequence,'r') as SequenceFile:
+    SequenceData = SequenceFile.read().splitlines()
+  del SequenceData[0]
+
 else :
   print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
-  exit()
+  SequenceData = []
+  #exit()
 
 if os.path.exists(WaterShowFile_Audio) :
   print ("Audio file is: ",WaterShowFile_Audio)
@@ -502,16 +548,13 @@ else :
   exit()
 
 
-with open(WaterShowFile_Sequence,'r') as SequenceFile:
-  SequenceData = SequenceFile.read().splitlines()
-del SequenceData[0]
 
 InitGPIO()
 InitSolenoids()
 
 # Read Sequence file and process it
 Pattern=[]
-SequenceProcessor() 
+#SequenceProcessor() 
 #exit()
 
 #pygame.mixer.init()
@@ -537,12 +580,13 @@ try:
 #  WaterShowStart()
 
   while True:
-    if (STATE['ISRUNNING']) :
+    #if (STATE['ISRUNNING']) :
+      STATE['ISRUNNING']=True
       WaterShowStart()
       time.sleep(10)
 
-    print("In main loop")
-    time.sleep(5)
+      print("In main loop")
+      time.sleep(5)
 
-except KeyboardInterrupt:
+except :
   HardCleanExit()
