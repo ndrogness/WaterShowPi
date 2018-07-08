@@ -21,7 +21,6 @@ S_ON=0
 
 NumSolenoids=len(Solenoids)
 print ("Num Solendoids:",NumSolenoids)
-exit()
 
 GPIO.setup(PumpGPIO, GPIO.OUT)
 
