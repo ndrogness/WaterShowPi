@@ -33,7 +33,7 @@ class Circuit :
 
 #BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':250,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
  
-  def __init__(self,Name,Members):
+  def __init__(self,Name,Members,MaxConseqCompletions=3, MinCycleTimeDuration=2000):
     self.Name = Name
     self.Members = Members
     self.NumMembers = len(Members)
@@ -41,13 +41,13 @@ class Circuit :
     self.NextCircuitMemberIndex=0
     self.IsRunning=False
 
+    self.MaxConseqCircuitCompleted=MaxConseqCompletions
     self.CircuitStartTime=0
     self.CurCircuitCompletedCount=0
-    self.MaxConseqCircuitCompleted=3
 
+    self.MinCycleTimeDuration=MinCycleTimeDuration
     self.CurCycleStartTime=0
     self.CurCycleCount=0
-    self.MinCycleTimeDuration=5000
 
   def PrintMembers(self) :
     print ("Circuit",self.Name,"NumMembers=",self.NumMembers)
