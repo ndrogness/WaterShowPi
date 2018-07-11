@@ -9,6 +9,87 @@ import time
 import os
 import wave
 
+#HiFi [StartFreq,EndFreq,SweetSpot,Weight]
+SubBass={'name':'SubBass','freq_low':20,'freq_high':60,'freq_sweetspot':60,'step_size':5,'weight':1,'num_freqs_to_include':0}
+
+Bass={'name':'Bass','freq_low':61,'freq_high':250,'freq_sweetspot':140,'step_size': 25,'weight':2,'num_freqs_to_include':1}
+
+LowMidrange={'name':'LowMidrange','freq_low':251,'freq_high':500,'freq_sweetspot':300,'step_size':30,'weight':4,'num_freqs_to_include':1}
+
+Midrange={'name':'Midrange','freq_low':501,'freq_high':2000,'freq_sweetspot':1000,'step_size':180,'weight':8,'num_freqs_to_include':2}
+
+UpperMidrange={'name':'UpperMidrange','freq_low':2001,'freq_high':4000,'freq_sweetspot':2500,'step_size':250,'weight':16,'num_freqs_to_include':2}
+
+Presence={'name':'Presence','freq_low':4001,'freq_high':6000,'freq_sweetspot':5000,'step_size':250,'weight':32,'num_freqs_to_include':1}
+
+Brilliance={'name':'Brilliance','freq_low':6001,'freq_high':20000,'freq_sweetspot':12000,'step_size':1500,'weight':64,'num_freqs_to_include':1}
+
+HiFi_ascending=[SubBass,Bass,LowMidrange,Midrange,UpperMidrange,Presence,Brilliance]
+
+def HiFiAutoBuild(filename,freqs,weights,ChunkSize=4096,MaxFreqs=8):
+
+  DataFFT=[]
+
+  #possible_freqs
+  HiFi_freqs=dict()
+  HiFi_weights=dict()
+  HiFi_counts=dict()
+  for i in range(0,len(HiFi_ascending)):
+    HiFi_freqs[HiFi_ascending[i]['name']]=build_freq_matrix(HiFi_ascending[i]['freq_low'],HiFi_ascending[i]['step_size'],HiFi_ascending[i]['freq_high'])
+    HiFi_weights[ HiFi_ascending[i]['name'] ]=[HiFi_ascending[i]['weight'] for x in range(0,len(HiFi_freqs[HiFi_ascending[i]['name']])) ]
+    HiFi_counts[ HiFi_ascending[i]['name'] ]=[int(0) for x in range(0,len(HiFi_freqs[HiFi_ascending[i]['name']])) ]
+
+    #print(HiFi_freqs[HiFi_ascending[i]['name']])
+    #print(HiFi_weights[HiFi_ascending[i]['name']])
+  
+  wavfile = wave.open(filename,'r')
+  sample_rate = wavfile.getframerate()
+
+  data = wavfile.readframes(ChunkSize)
+  print ("Calculating FFT on Wavfile...")
+
+  while sys.getsizeof(data) > 16000:
+
+    for HIFI in HiFi_freqs.keys():
+      #DataFFT=calculate_levels(data,ChunkSize,sample_rate,possible_freqs,possible_weights)
+      #print ("Processing Hifi:",HIFI,HiFi_freqs[HIFI],HiFi_weights[HIFI])
+      DataFFT=calculate_levels(data,ChunkSize,sample_rate,HiFi_freqs[HIFI],HiFi_weights[HIFI])
+      for j in range(0,len(DataFFT)):
+        #possible_freqs_count[j]+=DataFFT[j]
+        HiFi_counts[HIFI][j]+=DataFFT[j]
+
+    data = wavfile.readframes(ChunkSize)
+
+  wavfile.close()
+
+  #HD={}
+  #for HIFI in HiFi_freqs.keys():
+  #  print ("Hifi:",HIFI,HiFi_freqs[HIFI],HiFi_weights[HIFI])
+  #  for i in range(0,len(HiFi_counts[HIFI])):
+  #    print (HiFi_freqs[HIFI][i],"hz =",HiFi_counts[HIFI][i])
+      #HD[HiFi_counts[i]]=i
+    #HiFi_freq_counts_ref[HIFI]=HD
+
+  #Brilliance={'name':'Brilliance','freq_low':6001,'freq_high':20000,'freq_sweetspot':12000,'step_size':1500,'weight':64,'num_freqs_to_include':1}
+  #HiFi_ascending=[SubBass,Bass,LowMidrange,Midrange,UpperMidrange,Presence,Brilliance]
+
+  final_freq_counter=0
+  for j in range(0,len(HiFi_ascending)):
+    name=HiFi_ascending[j]['name']
+    num=HiFi_ascending[j]['num_freqs_to_include']
+    HiFi_maxes=HiFi_counts[name]
+    HiFi_maxes.sort(reverse=True)
+
+    for k in range(0,num):
+      candidate_count=HiFi_maxes[k]
+
+      for l in range(0,len(HiFi_counts[name])):
+        if HiFi_counts[name][l] == candidate_count:
+          print ("Name",name,"Adding Frequency:",HiFi_freqs[name][l],"Count:",HiFi_counts[name][l])
+          freqs.append(HiFi_freqs[name][l])
+          weights.append(HiFi_weights[name][l])
+          final_freq_counter+=1
+      
 
 def AutoBuild(filename,freqs,weights,ChunkSize=4096,MaxFreqs=8):
 
@@ -70,14 +151,6 @@ def AutoBuild(filename,freqs,weights,ChunkSize=4096,MaxFreqs=8):
   #    if possible_freqs_count[k] == Counts[j]:
   #      freqs[j]=
 
-  #HiFi [StartFreq,EndFreq,SweetSpot]
-  SubBass=[20,60,60]
-  Bass=[61,250,250]
-  LowMidrange=[251,500,300]
-  Midrange=[501,2000,1000]
-  UpperMidrange=[2001,4000,2500]
-  Presence=[4001,6000,5000]
-  Brilliance=[6001,20000,12000]
 
   #print("Final Freqs:",freqs)
 
@@ -86,7 +159,7 @@ def build_freq_matrix(start_freq=50,step_size=50,end_freq=20000):
   if start_freq < 20:
     start_freq = 20
 
-  stop= int(round(end_freq/step_size))
+  stop= int(round((end_freq-start_freq)/step_size))
   #print ("Stop:",stop)
   return [start_freq+(step_size*x) for x in range(0,stop)]
 
@@ -115,7 +188,12 @@ def calculate_levels(data,chunk,sample_rate,freqs,weighting):
   v1=int(2*chunk*0/sample_rate)
   for i in range(0,len(freqs)) :
     v2=int(2*chunk*freqs[i]/sample_rate)
-    matrix[i]= int( (np.mean(power[v1:v2:1]) * weighting[i]) / 1000000 )
+    #print (v1,v2)
+    try:
+      matrix[i]= int( (np.mean(power[v1:v2:1]) * weighting[i]) / 1000000 )
+    except:
+      matrix[i]=0
+
     if matrix[i] > 8 :
       matrix[i]=8
     v1=v2
