@@ -31,9 +31,12 @@ def Pulse(PulseOptionsString,SolenoidMatrix,Solenoids,TimeSequence) :
 
 class Circuit :
 
-#BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':250,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
- 
-  def __init__(self,Name,Members,MaxConseqCompletions=3, MinCycleTimeDuration=2000):
+  CircuitsRunning = False
+
+  def __init__(self,Name,Members,FreqIndex=0,IntensityMinTrigger=8,MaxConseqCompletions=3, MinCycleTimeDuration=1000):
+    self.Name = Name
+    self.FreqIndex = FreqIndex
+    self.IntensityMinTrigger = IntensityMinTrigger
     self.Name = Name
     self.Members = Members
     self.NumMembers = len(Members)
@@ -60,6 +63,12 @@ class Circuit :
     self.Members = self.Members + NewMembers
     self.NumMembers=len(self.Members)
 
+  def GetFreqIndex(self):
+    return self.FreqIndex
+
+  def GetIntensityMinTrigger(self):
+    return self.IntensityMinTrigger
+
   def SetCurInCircuit(self,CurMemberIndex):
     if CurMemberIndex > len(self.Members)-1 :
       return False
@@ -83,13 +92,17 @@ class Circuit :
 
   def StopCircuit(self):
     self.IsRunning=False
+    self.CircuitsRunning=False
     self.CircuitStartTime=0
     self.CurTriggerTime=0
     self.CurCircuitCompletedCount=0
     self.CurCycleCount=0
+    print("Circuit",self.Name,"Stopping...")
 
   def StartCircuit(self):
+    print ("Starting",self.Name,"Circuit...")
     self.IsRunning=True
+    self.CircuitsRunning=True
     self.CircuitStartTime=int(round(time.time()*1000))
     self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
 
@@ -103,13 +116,14 @@ class Circuit :
   def Trigger(self):
     if not self.IsRunning:
       self.StartCircuit()
+      self.CurCycleStartTime=int(round(time.time()*1000))-self.CircuitStartTime
 
     self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
 
     print (self.CurTriggerTime)
     if (self.CurTriggerTime-self.CurCycleStartTime) < self.MinCycleTimeDuration:
       self.CurCycleCount+=1
-      print ("Current:")
+      #print ("Current:")
       return self.Members[self.CurCircuitMemberIndex]
 
     elif self.CurCircuitCompletedCount == self.MaxConseqCircuitCompleted:
