@@ -33,12 +33,11 @@ class Circuit :
 
   CircuitsRunning = False
 
-  def __init__(self,Name,Members,FreqIndex=0,IntensityMinTrigger=8,MaxConseqCompletions=3, MinCycleTimeDuration=1000):
-    self.Name = Name
-    self.FreqIndex = FreqIndex
-    self.IntensityMinTrigger = IntensityMinTrigger
+  def __init__(self,Name,Members,FreqSet=['eq8','lt8','lt8','lt8'],IntensityMinTrigger=8,MaxConseqCompletions=3, MinCycleTimeDuration=1000):
     self.Name = Name
     self.Members = Members
+    self.FreqSet = FreqSet
+    self.IntensityMinTrigger = IntensityMinTrigger
     self.NumMembers = len(Members)
     self.CurCircuitMemberIndex=0
     self.NextCircuitMemberIndex=0
@@ -63,11 +62,29 @@ class Circuit :
     self.Members = self.Members + NewMembers
     self.NumMembers=len(self.Members)
 
-  def GetFreqIndex(self):
-    return self.FreqIndex
+  def GetName(self):
+    return self.Name
+
+  def GetFreqSet(self):
+    return self.FreqSet
+
+  def GetMinCycleTimeDuration(self):
+    return self.MinCycleTimeDuration
+
+  def SetMinCycleTimeDuration(self,MCTD):
+    self.MinCycleTimeDuration=MCTD
 
   def GetIntensityMinTrigger(self):
     return self.IntensityMinTrigger
+
+  def SetIntensityMinTrigger(self,IMT):
+    self.IntensityMinTrigger=IMT
+
+  def GetMaxConseqCompletions(self):
+    return self.MaxConseqCircuitCompleted
+
+  def SetMaxConseqCompletions(self,MCC):
+    self.MaxConseqCircuitCompleted=MCC
 
   def SetCurInCircuit(self,CurMemberIndex):
     if CurMemberIndex > len(self.Members)-1 :
@@ -97,14 +114,17 @@ class Circuit :
     self.CurTriggerTime=0
     self.CurCircuitCompletedCount=0
     self.CurCycleCount=0
-    print("Circuit",self.Name,"Stopping...")
+    print("Circuit",self.Name,"Stopping...",self.CurCircuitMemberIndex,self.NextCircuitMemberIndex)
+    self.CurCircuitMemberIndex=self.NextCircuitMemberIndex
 
-  def StartCircuit(self):
+  def StartCircuit(self,ExtTriggerTime):
     print ("Starting",self.Name,"Circuit...")
     self.IsRunning=True
     self.CircuitsRunning=True
-    self.CircuitStartTime=int(round(time.time()*1000))
-    self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
+    #self.CircuitStartTime=int(round(time.time()*1000))
+    self.CircuitStartTime=ExtTriggerTime
+    #self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
+    self.CurTriggerTime=ExtTriggerTime
 
     self.CurCircuitCompletedCount=0
     self.CurCycleCount=0
@@ -113,29 +133,32 @@ class Circuit :
     if self.NextCircuitMemberIndex >= self.NumMembers :
       self.NextCircuitMemberIndex=0
 
-  def Trigger(self):
+  def Trigger(self,ExtTriggerTime):
     if not self.IsRunning:
-      self.StartCircuit()
-      self.CurCycleStartTime=int(round(time.time()*1000))-self.CircuitStartTime
+      self.StartCircuit(ExtTriggerTime)
+      #self.CurCycleStartTime=int(round(time.time()*1000))-self.CircuitStartTime
+      self.CurCycleStartTime=ExtTriggerTime
 
-    self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
+    #self.CurTriggerTime=int(round(time.time()*1000))-self.CircuitStartTime
+    self.CurTriggerTime=ExtTriggerTime
 
-    print (self.CurTriggerTime)
+    #print ("TriggerTime:",self.CurTriggerTime,"CycleStartedAt:",self.CurCycleStartTime)
     if (self.CurTriggerTime-self.CurCycleStartTime) < self.MinCycleTimeDuration:
       self.CurCycleCount+=1
-      #print ("Current:")
       return self.Members[self.CurCircuitMemberIndex]
 
     elif self.CurCircuitCompletedCount == self.MaxConseqCircuitCompleted:
+      print ("Max circuits completed:",self.MaxConseqCircuitCompleted)
       self.StopCircuit()
       return []
 
     else:
-      return self.GoNextInCircuit()
+      return self.GoNextInCircuit(ExtTriggerTime)
 
 
-  def GoNextInCircuit(self):
-    self.CurCycleStartTime=int(round(time.time()*1000))-self.CircuitStartTime
+  def GoNextInCircuit(self,ExtTriggerTime):
+    #self.CurCycleStartTime=int(round(time.time()*1000))-self.CircuitStartTime
+    self.CurCycleStartTime=ExtTriggerTime-self.CircuitStartTime
 
     self.CurCircuitMemberIndex=self.NextCircuitMemberIndex
     self.NextCircuitMemberIndex+=1

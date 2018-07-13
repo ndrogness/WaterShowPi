@@ -40,8 +40,10 @@ STATE = {'ISRUNNING':False,'PUSHBUTTON_LASTTIME':int(round(time.time()*1000))}
 #print (STATE)
 
 WavChunkIntesity = [0,0,0,0,0,0,0,0]
-Freqs=[100,900,4000,20000]
-Freqweighting=[2,4,6,1]
+#Freqs=[100,900,4000,20000]
+#Freqweighting=[2,4,6,1]
+Freqs=[]
+Freqweighting=[]
 
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
@@ -53,8 +55,6 @@ S4 = ['S4',True,9]
 S5 = ['S5',True,11]
 S6 = ['S6',True,13]
 
-#BassSolenoids=[3,4]
-#ChorusSolenoids=[5,6]
 
 #Name,
 #Members,
@@ -62,10 +62,13 @@ S6 = ['S6',True,13]
 #IntensityMinTrigger=8,
 #MaxConseqCompletions=3,
 #MinCycleTimeDuration=1000
-Bass=Patterns.Circuit("Bass",[[1,3],[2,4]],FreqIndex=0,IntensityMinTrigger=8,MinCycleTimeDuration=85,MaxConseqCompletions=50)
-Chorus=Patterns.Circuit("Chorus",[[5]],FreqIndex=1,IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=10)
-Chorus2=Patterns.Circuit("Chorus2",[[6]],FreqIndex=2,IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=3)
+#Bass=Patterns.Circuit("Bass",[[1,3],[2,4]],FreqSet=['eq8','lt8','lt8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=85,MaxConseqCompletions=50)
+#Chorus=Patterns.Circuit("Chorus",[[5]],FreqSet=['lt8','eq8','lt8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=10)
+#Chorus2=Patterns.Circuit("Chorus2",[[6]],FreqSet=['lt8','lt8','eq8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=3)
 
+# In order of Trigger Priority ascending
+#WaterShowPatterns=[Chorus2,Chorus,Bass]
+WaterShowPatterns=[]
 
 #      [IsRunning {True|False},GPIO]
 Pump = [False,23]
@@ -290,7 +293,88 @@ def SequenceProcessor() :
     if NextPattern[1] == 'Pulse' :
       Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
 
+#######################################
+def CreatePatternFromCFG (PatternOptions):
 
+  PatternOptionsVals=PatternOptions.split("|")
+
+  for i in range(0,len(PatternOptionsVals)):
+    PatternOption=PatternOptionsVals[i].split(":")
+
+    #Name:Bass
+    if PatternOption[0] == 'Name':
+      CName=PatternOption[1]
+
+    #SolSet:1&3,2&4
+    if PatternOption[0] == 'SolSet':
+      CSolenoidSet=[]
+      SolOuterSet=PatternOption[1].split(",")
+      print("SolOuterSet:",SolOuterSet)
+      for j in range(0,len(SolOuterSet)):
+        SolInnerSet=SolOuterSet[j].split("&")
+        SolInnerSet=list(map(int,SolInnerSet))
+        print("SolInnerSet:",SolInnerSet)
+        CSolenoidSet.append(SolInnerSet)
+
+    #FreqSet:eq8,lt8,lt8,lt8
+    if PatternOption[0] == 'FreqSet':
+      CFreqSet=PatternOption[1].split(",")
+
+  #print ("CSolSet:",CSolenoidSet)
+  C=Patterns.Circuit(Name=CName,Members=CSolenoidSet,FreqSet=CFreqSet)
+
+  for i in range(0,len(PatternOptionsVals)):
+    PatternOption=PatternOptionsVals[i].split(":")
+
+    if PatternOption[0] == 'IntensityMinTrigger':
+      C.SetIntensityMinTrigger(int(PatternOption[1]))
+
+    if PatternOption[0] == 'MinCycleTimeDuration':
+      C.SetMinCycleTimeDuration(int(PatternOption[1]))
+
+    if PatternOption[0] == 'MaxConseqCompletions':
+      C.SetMaxConseqCompletions(int(PatternOption[1]))
+
+  WaterShowPatterns.append(C)
+
+#######################################
+def CFGParser ():
+
+  for i in range(0,len(CFGData)):
+    CFGLine=CFGData[i].split("=")
+    #print("ConfigLine is:",CFGLine)
+
+    # Populate Freqs=[]
+    if CFGLine[0] == 'Frequencies' :
+      print("Frequencies are:",CFGLine[1])
+      CFGValues=CFGLine[1].split(",")
+
+      for i in range(0,len(CFGValues)):
+        Freqs.append(int(CFGValues[i]))
+
+    #Populate Freqweighting=[]
+    if CFGLine[0] == 'FrequenciesWeighting' :
+      CFGValues=CFGLine[1].split(",")
+
+      for i in range(0,len(CFGValues)):
+        Freqweighting.append(int(CFGValues[i]))
+
+    #Populate WaterShowPatternNames=[]
+    #if CFGLine[0] == 'Patterns' :
+    #  CFGValues=CFGLine[1].split(",")
+
+    #  for i in range(0,len(CFGValues)):
+    #    WaterShowPatternNames[CFGValues[i]]={}
+
+    #Pattern Def
+    if CFGLine[0] == 'PatternDef' :
+      CreatePatternFromCFG(CFGLine[1])
+      CFGValues=CFGLine[1].split("|")
+
+
+  if len(Freqs) < 1 or len(Freqweighting) < 1 :
+    print("Missing Frequencies or Weighting in .cfg file...bailing out!")
+    exit()
 
 #######################################
 def PumpCtl (RunPump):
@@ -317,26 +401,72 @@ def PumpCtl (RunPump):
     Pump[P_STATE]=False
      
 #######################################
-def IntensityTrigger (WavChunkIntensity):
+def IntensityTrigger (WavChunkIntensity,CurTime):
 
   #Bass=Patterns.Circuit('Bass',[[1,3],[2,4]],FreqIndex=0,IntensityMinTrigger=8)
   #Chorus=Patterns.Circuit('Chorus',[5,6],FreqIndex=1,IntensityMinTrigger=7,MinCycleTimeDuration=2000)
 
   #print ("Intensity:",WavChunkIntensity)
 
-  if WavChunkIntensity[Chorus2.GetFreqIndex()] >= Chorus2.GetIntensityMinTrigger():
-    print ("Chorus2 Triggering:",WavChunkIntensity)
-    SolenoidSend(Chorus2.Trigger(),V_OPEN)
+  CircuitFound=False
 
-  if WavChunkIntensity[Chorus.GetFreqIndex()] >= Chorus.GetIntensityMinTrigger():
-    print ("Chorus Triggering:",WavChunkIntensity)
-    SolenoidSend(Chorus.Trigger(),V_OPEN)
+  for i in range(0,len(WaterShowPatterns)):
 
-  elif WavChunkIntensity[Bass.GetFreqIndex()] >= Bass.GetIntensityMinTrigger():
+    FreqSet=WaterShowPatterns[i].GetFreqSet()
+    #FreqSet=['eq8','lt8','lt8','lt8']
 
-    print ("Bass Triggering:",WavChunkIntensity)
-    SolenoidSend(Bass.Trigger(),V_OPEN)
+    FreqSetMatch=True
+    for j in range(0,len(FreqSet)):
+      FreqOperand=FreqSet[j][0:2]
+      FreqIntensity=int(FreqSet[j][2:])
 
+      if FreqOperand == 'eq' and WavChunkIntensity[j] != FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'lt' and WavChunkIntensity[j] >= FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'le' and WavChunkIntensity[j] > FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'gt' and WavChunkIntensity[j] <= FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'ge' and WavChunkIntensity[j] < FreqIntensity :
+          FreqSetMatch=False 
+
+    if WaterShowPatterns[i].IsRunning and CurTime-WaterShowPatterns[i].CurCycleStartTime < WaterShowPatterns[i].MinCycleTimeDuration :
+  
+        #print (WaterShowPatterns[i].Name,"Holding SameCycle:",WavChunkIntensity)
+        WaterShowPatterns[i].Trigger(CurTime)
+        CircuitFound=True
+
+    else: 
+    
+      if CircuitFound:
+        if WaterShowPatterns[i].IsRunning:
+          print (WaterShowPatterns[i].Name,"Stopping.(Circuit Collision)..:",WavChunkIntensity)
+          WaterShowPatterns[i].StopCircuit()
+
+      else:
+        # Circuit Not Found Yet
+
+        # This Pattern Should fire or hold sense we matched
+        if FreqSetMatch:
+
+          if WaterShowPatterns[i].IsRunning:
+            #print (WaterShowPatterns[i].Name,"Holding NextCyle...:",WavChunkIntensity)
+            WaterShowPatterns[i].Trigger(CurTime)
+            CircuitFound=True
+
+          else:
+            print (WaterShowPatterns[i].Name,"Triggering:",WavChunkIntensity)
+            SolenoidSend(WaterShowPatterns[i].Trigger(CurTime),V_OPEN)
+            CircuitFound=True
+
+
+        # This Pattern Should NOT fire sense we didn't match
+        if not FreqSetMatch:
+
+          if WaterShowPatterns[i].IsRunning:
+            print (WaterShowPatterns[i].Name,"Stopping (No match)...:",WavChunkIntensity)
+            WaterShowPatterns[i].StopCircuit()
 
 
 
@@ -372,7 +502,7 @@ def WaterShowStart():
     WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
     CurTime = int(round(time.time()*1000)) - StartTime
     #print("WavChunk:",WavChunkIntensity)
-    IntensityTrigger(WavChunkIntensity)
+    IntensityTrigger(WavChunkIntensity,CurTime)
     AudioOutput.write(WavData)
     WavData = WavFile.readframes(chunk)
 
@@ -419,7 +549,7 @@ else :
   WaterShowDir = sys.argv[1]
   
 WaterShowFile_FFT = WaterShowDir + "/" + WaterShowDir + ".fft"
-WaterShowFile_Sequence = WaterShowDir + "/" + WaterShowDir + ".seq"
+WaterShowFile_CFG = WaterShowDir + "/" + WaterShowDir + ".cfg"
 WaterShowFile_Audio = WaterShowDir + "/" + WaterShowDir + ".wav"
 
 if os.path.exists(WaterShowFile_FFT) :
@@ -428,16 +558,17 @@ else :
   print ("Not a FFT file: ",WaterShowFile_FFT) 
   #exit()
 
-if os.path.exists(WaterShowFile_Sequence) :
-  print ("Sequence file is: ",WaterShowFile_Sequence)
-  with open(WaterShowFile_Sequence,'r') as SequenceFile:
-    SequenceData = SequenceFile.read().splitlines()
-  del SequenceData[0]
+if os.path.exists(WaterShowFile_CFG) :
+  print ("Config file is: ",WaterShowFile_CFG)
+  with open(WaterShowFile_CFG,'r') as CFGFile:
+    CFGData = CFGFile.read().splitlines()
+  #del SequenceData[0]
+  CFGParser()
 
 else :
-  print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
-  SequenceData = []
-  #exit()
+  print ("Not a valid cfg File: ",WaterShowFile_CFG) 
+  CFGData = []
+  exit()
 
 if os.path.exists(WaterShowFile_Audio) :
   print ("Audio file is: ",WaterShowFile_Audio)
