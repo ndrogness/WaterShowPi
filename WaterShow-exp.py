@@ -39,8 +39,10 @@ STATE = {'ISRUNNING':False,'PUSHBUTTON_LASTTIME':int(round(time.time()*1000))}
 #print (STATE)
 
 WavChunkIntesity = [0,0,0,0,0,0,0,0]
-Freqs=[100,500,900,20000]
-Freqweighting=[2,4,6,1]
+#Freqs=[100,900,4000,20000]
+#Freqweighting=[2,4,6,1]
+Freqs=[]
+Freqweighting=[]
 
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
@@ -52,12 +54,20 @@ S4 = ['S4',True,9]
 S5 = ['S5',True,11]
 S6 = ['S6',True,13]
 
-BassSolenoids=[3,4]
-ChorusSolenoids=[5,6]
 
-BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':250,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
+#Name,
+#Members,
+#FreqIndex=0,
+#IntensityMinTrigger=8,
+#MaxConseqCompletions=3,
+#MinCycleTimeDuration=1000
+#Bass=Patterns.Circuit("Bass",[[1,3],[2,4]],FreqSet=['eq8','lt8','lt8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=85,MaxConseqCompletions=50)
+#Chorus=Patterns.Circuit("Chorus",[[5]],FreqSet=['lt8','eq8','lt8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=10)
+#Chorus2=Patterns.Circuit("Chorus2",[[6]],FreqSet=['lt8','lt8','eq8','lt8'],IntensityMinTrigger=8,MinCycleTimeDuration=2000,MaxConseqCompletions=3)
 
-CHORUS={'FreqIndex':2, 'IntesityMinTrigger':8,'Solenoids':ChorusSolenoids,'MinCycleInterval':2000,'MaxConseqCycles': 10, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0,'IsRunning':False}
+# In order of Trigger Priority ascending
+#WaterShowPatterns=[Chorus2,Chorus,Bass]
+WaterShowPatterns=[]
 
 #      [IsRunning {True|False},GPIO]
 Pump = [False,23]
@@ -65,7 +75,6 @@ Pump = [False,23]
 Solenoids = [S0,S1,S2,S3,S4,S5,S6]
 NumSolenoids=len(Solenoids)
 
-Solenoid_MinFireTime=.250
 
 SD=dict()
 
@@ -219,52 +228,41 @@ pwm.ChangeDutyCycle(0)
 
 
 #######################################
-def SolenoidSend(SolenoidX,NewState) :
+def SolenoidSend(SolenoidSet,NewState) :
 
-  #SolendoidsOpen[1,2,3]
-  #SolendoidsClose[4,5,6]
-  #print("SolenoidX:",SolenoidX,NewState)
+  print("SolenoidSet:",SolenoidSet,NewState)
 
-  for i in range(1,NumSolenoids):
-    if i == SolenoidX:
-      if NewState == V_CLOSE and Solenoids[SolenoidX][S_STATUS] != V_CLOSE:
-        print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_CLOSE)
-        GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
-        Solenoids[SolenoidX][S_STATUS]=V_CLOSE
-        if i == 3:
-          GPIO.output(Solenoids[1][S_GPIO], V_CLOSE)
-          Solenoids[1][S_STATUS]=V_CLOSE
+  InSolenoidSet=dict()
+  for i in range(0,len(SolenoidSet)):
+    if SolenoidSet[i] == 0:
+      return False    
 
-        if i == 4:
-          GPIO.output(Solenoids[2][S_GPIO], V_CLOSE)
-          Solenoids[2][S_STATUS]=V_CLOSE
-        
-      if NewState == V_OPEN and Solenoids[SolenoidX][S_STATUS] != V_OPEN:
-        #print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_OPEN)
-        GPIO.output(Solenoids[SolenoidX][S_GPIO], V_OPEN)
-        Solenoids[SolenoidX][S_STATUS]=V_OPEN
-        #time.sleep(.250)
-        #GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
-        #Solenoids[SolenoidX][S_STATUS]=V_CLOSE
+    if Solenoids[SolenoidSet[i]][S_STATUS] != V_OPEN and NewState == V_OPEN:
+        #print("Changing state:",SolenoidSet[i],":",Solenoids[SolenoidSet[i]][S_STATUS]," -> ",V_OPEN)
+        GPIO.output(Solenoids[SolenoidSet[i]][S_GPIO], V_OPEN)
+        Solenoids[SolenoidSet[i]][S_STATUS]=V_OPEN
+        InSolenoidSet[SolenoidSet[i]]=True
 
-        if i == 3:
-          GPIO.output(Solenoids[1][S_GPIO], V_OPEN)
-          Solenoids[1][S_STATUS]=V_OPEN
-        if i == 4:
-          GPIO.output(Solenoids[2][S_GPIO], V_OPEN)
-          Solenoids[2][S_STATUS]=V_OPEN
+    elif NewState == V_CLOSE:
+      GPIO.output(Solenoids[SolenoidSet[i]][S_GPIO], V_CLOSE)
+      Solenoids[SolenoidSet[i]][S_STATUS]=V_CLOSE
 
-    elif NewState == V_OPEN:
+  BackPressure=True        
+
+  for i in range(1,len(Solenoids)):
+
+    if not i in InSolenoidSet.keys():
+      #print ("S",i,"Not in set",SolenoidSet)
       GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
       Solenoids[i][S_STATUS]=V_CLOSE
 
-  BackPressure=True        
-  #GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
-  #Solenoids[0][S_STATUS]=V_OPEN
-
-  for i in range (1,NumSolenoids) :
-    if Solenoids[i][S_STATUS] == V_OPEN:
+    elif NewState == V_OPEN:
       BackPressure=False
+
+
+  #for i in range (1,NumSolenoids) :
+  #  if Solenoids[i][S_STATUS] == V_OPEN:
+  #    BackPressure=False
 
   # Close backpressure valve
   if BackPressure:
@@ -294,7 +292,88 @@ def SequenceProcessor() :
     if NextPattern[1] == 'Pulse' :
       Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
 
+#######################################
+def CreatePatternFromCFG (PatternOptions):
 
+  PatternOptionsVals=PatternOptions.split("|")
+
+  for i in range(0,len(PatternOptionsVals)):
+    PatternOption=PatternOptionsVals[i].split(":")
+
+    #Name:Bass
+    if PatternOption[0] == 'Name':
+      CName=PatternOption[1]
+
+    #SolSet:1&3,2&4
+    if PatternOption[0] == 'SolSet':
+      CSolenoidSet=[]
+      SolOuterSet=PatternOption[1].split(",")
+      print("SolOuterSet:",SolOuterSet)
+      for j in range(0,len(SolOuterSet)):
+        SolInnerSet=SolOuterSet[j].split("&")
+        SolInnerSet=list(map(int,SolInnerSet))
+        print("SolInnerSet:",SolInnerSet)
+        CSolenoidSet.append(SolInnerSet)
+
+    #FreqSet:eq8,lt8,lt8,lt8
+    if PatternOption[0] == 'FreqSet':
+      CFreqSet=PatternOption[1].split(",")
+
+  #print ("CSolSet:",CSolenoidSet)
+  C=Patterns.Circuit(Name=CName,Members=CSolenoidSet,FreqSet=CFreqSet)
+
+  for i in range(0,len(PatternOptionsVals)):
+    PatternOption=PatternOptionsVals[i].split(":")
+
+    if PatternOption[0] == 'IntensityMinTrigger':
+      C.SetIntensityMinTrigger(int(PatternOption[1]))
+
+    if PatternOption[0] == 'MinCycleTimeDuration':
+      C.SetMinCycleTimeDuration(int(PatternOption[1]))
+
+    if PatternOption[0] == 'MaxConseqCompletions':
+      C.SetMaxConseqCompletions(int(PatternOption[1]))
+
+  WaterShowPatterns.append(C)
+
+#######################################
+def CFGParser ():
+
+  for i in range(0,len(CFGData)):
+    CFGLine=CFGData[i].split("=")
+    #print("ConfigLine is:",CFGLine)
+
+    # Populate Freqs=[]
+    if CFGLine[0] == 'Frequencies' :
+      print("Frequencies are:",CFGLine[1])
+      CFGValues=CFGLine[1].split(",")
+
+      for i in range(0,len(CFGValues)):
+        Freqs.append(int(CFGValues[i]))
+
+    #Populate Freqweighting=[]
+    if CFGLine[0] == 'FrequenciesWeighting' :
+      CFGValues=CFGLine[1].split(",")
+
+      for i in range(0,len(CFGValues)):
+        Freqweighting.append(int(CFGValues[i]))
+
+    #Populate WaterShowPatternNames=[]
+    #if CFGLine[0] == 'Patterns' :
+    #  CFGValues=CFGLine[1].split(",")
+
+    #  for i in range(0,len(CFGValues)):
+    #    WaterShowPatternNames[CFGValues[i]]={}
+
+    #Pattern Def
+    if CFGLine[0] == 'PatternDef' :
+      CreatePatternFromCFG(CFGLine[1])
+      CFGValues=CFGLine[1].split("|")
+
+
+  if len(Freqs) < 1 or len(Freqweighting) < 1 :
+    print("Missing Frequencies or Weighting in .cfg file...bailing out!")
+    exit()
 
 #######################################
 def PumpCtl (RunPump):
@@ -321,118 +400,73 @@ def PumpCtl (RunPump):
     Pump[P_STATE]=False
      
 #######################################
-def IntensitySend(WavChunkIntensity,CurTime):
+def IntensityTrigger (WavChunkIntensity,CurTime):
 
+  #Bass=Patterns.Circuit('Bass',[[1,3],[2,4]],FreqIndex=0,IntensityMinTrigger=8)
+  #Chorus=Patterns.Circuit('Chorus',[5,6],FreqIndex=1,IntensityMinTrigger=7,MinCycleTimeDuration=2000)
 
-#BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':1000,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
+  #print ("Intensity:",WavChunkIntensity)
 
-#  if BASS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] < BASS['IntesityMinTrigger']:
-#    CurSolenoid=BASS['CurSolenoid']
-#    NextSolenoid=BASS['NextSolenoid']
-#    ElapsedTime=CurTime-BASS['CurTriggerTime']
-#    if ElapsedTime > BASS['MinCycleInterval']:
-#      print ("Spindn(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-#      SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
-#      NextSolenoid=NextSolenoid+1
-#      if NextSolenoid > len(BASS['Solenoids'])-1 :
-#        BASS['NextSolenoid']=0
-#      else :
-#        BASS['NextSolenoid']=NextSolenoid
-#
-#      BASS['IsRunning']=False
-#      BASS['CurCycleCount'] = 0
+  CircuitFound=False
 
-  if not CHORUS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] >= BASS['IntesityMinTrigger']:
+  for i in range(0,len(WaterShowPatterns)):
 
-    CurSolenoid=BASS['CurSolenoid']
-    NextSolenoid=BASS['NextSolenoid']
-    ElapsedTime=CurTime-BASS['CurTriggerTime']
+    FreqSet=WaterShowPatterns[i].GetFreqSet()
+    #FreqSet=['eq8','lt8','lt8','lt8']
 
-    if ElapsedTime > BASS['MinCycleInterval']:
+    FreqSetMatch=True
+    for j in range(0,len(FreqSet)):
+      FreqOperand=FreqSet[j][0:2]
+      FreqIntensity=int(FreqSet[j][2:])
 
-      if BASS['IsRunning']:
-      #  print ("Closng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
+      if FreqOperand == 'eq' and WavChunkIntensity[j] != FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'lt' and WavChunkIntensity[j] >= FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'le' and WavChunkIntensity[j] > FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'gt' and WavChunkIntensity[j] <= FreqIntensity :
+          FreqSetMatch=False 
+      elif FreqOperand == 'ge' and WavChunkIntensity[j] < FreqIntensity :
+          FreqSetMatch=False 
 
+    if WaterShowPatterns[i].IsRunning and CurTime-WaterShowPatterns[i].CurCycleStartTime < WaterShowPatterns[i].MinCycleTimeDuration :
+  
+        #print (WaterShowPatterns[i].Name,"Holding SameCycle:",WavChunkIntensity)
+        WaterShowPatterns[i].Trigger(CurTime)
+        CircuitFound=True
 
-      
-      if BASS['CurCycleCount'] == BASS['MaxConseqCycles']:
-      #  print ("Stopng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
-        BASS['IsRunning']=False
-        BASS['CurCycleCount'] = 0
-
-      else:
-        print ("Firing(",CurTime,"): ",Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][NextSolenoid],V_OPEN)
-
-        BASS['CurSolenoid']=NextSolenoid
-
-        NextSolenoid=NextSolenoid+1
-        if NextSolenoid > len(BASS['Solenoids'])-1 :
-          BASS['NextSolenoid']=0
-        else :
-          BASS['NextSolenoid']=NextSolenoid
-
-        BASS['IsRunning']=True
-        BASS['CurTriggerTime']=CurTime
-        BASS['CurCycleCount']+=CurTime
-        CHORUS['CurCycleCount']=0
- 
-
-  if CHORUS['IsRunning'] and WavChunkIntensity[CHORUS['FreqIndex']] < CHORUS['IntesityMinTrigger']:
-    CurSolenoid=CHORUS['CurSolenoid']
-    NextSolenoid=CHORUS['NextSolenoid']
-    ElapsedTime=CurTime-CHORUS['CurTriggerTime']
-    if ElapsedTime > CHORUS['MinCycleInterval']:
-      print ("Spindn(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-      SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-      NextSolenoid=NextSolenoid+1
-      if NextSolenoid > len(CHORUS['Solenoids'])-1 :
-        CHORUS['NextSolenoid']=0
-      else :
-        CHORUS['NextSolenoid']=NextSolenoid
-
-      CHORUS['IsRunning']=False
-      CHORUS['CurCycleCount'] = 0
-
-  if WavChunkIntensity[CHORUS['FreqIndex']] >= CHORUS['IntesityMinTrigger']:
-
-    CurSolenoid=CHORUS['CurSolenoid']
-    NextSolenoid=CHORUS['NextSolenoid']
-    ElapsedTime=CurTime-CHORUS['CurTriggerTime']
-
-    if ElapsedTime > CHORUS['MinCycleInterval']:
-
-      if CHORUS['IsRunning']:
-        print ("Closng(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-      
-      if CHORUS['CurCycleCount'] == CHORUS['MaxConseqCycles']:
-        print ("Stopng(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-        CHORUS['IsRunning']=False
-        CHORUS['CurCycleCount'] = 0
+    else: 
+    
+      if CircuitFound:
+        if WaterShowPatterns[i].IsRunning:
+          print (WaterShowPatterns[i].Name,"Stopping.(Circuit Collision)..:",WavChunkIntensity)
+          WaterShowPatterns[i].StopCircuit()
 
       else:
-        print ("Firing(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][NextSolenoid],V_OPEN)
+        # Circuit Not Found Yet
 
-        CHORUS['CurSolenoid']=NextSolenoid
+        # This Pattern Should fire or hold sense we matched
+        if FreqSetMatch:
 
-        NextSolenoid=NextSolenoid+1
-        if NextSolenoid > len(CHORUS['Solenoids'])-1 :
-          CHORUS['NextSolenoid']=0
-        else :
-          CHORUS['NextSolenoid']=NextSolenoid
+          if WaterShowPatterns[i].IsRunning:
+            #print (WaterShowPatterns[i].Name,"Holding NextCyle...:",WavChunkIntensity)
+            WaterShowPatterns[i].Trigger(CurTime)
+            CircuitFound=True
 
-        CHORUS['IsRunning']=True
-        CHORUS['CurTriggerTime']=CurTime
-        CHORUS['CurCycleCount']+=1
-        BASS['CurCycleCount']=0
+          else:
+            print (WaterShowPatterns[i].Name,"Triggering:",WavChunkIntensity)
+            SolenoidSend(WaterShowPatterns[i].Trigger(CurTime),V_OPEN)
+            CircuitFound=True
 
-        
-        
+
+        # This Pattern Should NOT fire sense we didn't match
+        if not FreqSetMatch:
+
+          if WaterShowPatterns[i].IsRunning:
+            print (WaterShowPatterns[i].Name,"Stopping (No match)...:",WavChunkIntensity)
+            WaterShowPatterns[i].StopCircuit()
+
 
 
 #######################################
@@ -466,19 +500,13 @@ def WaterShowStart():
   while sys.getsizeof(WavData) > 16000 and STATE['ISRUNNING']:
     WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
     CurTime = int(round(time.time()*1000)) - StartTime
-    print(WavChunkIntensity)
-    IntensitySend(WavChunkIntensity,CurTime)
+    #print("WavChunk:",WavChunkIntensity)
+    IntensityTrigger(WavChunkIntensity,CurTime)
     AudioOutput.write(WavData)
     WavData = WavFile.readframes(chunk)
 
   WavChunkIntensity[:]
-  BASS['IsRunning']=False
-  BASS['CurTriggerTime']=0
-  BASS['CurCycleCount']=0
-  CHORUS['IsRunning']=False
-  CHORUS['CurTriggerTime']=0
-  CHORUS['CurCycleCount']=0
-  #STATE['ISRUNNING']=False
+  STATE['ISRUNNING']=False
   AudioOutput.close() 
   AudioMixer.setvolume(AudioVolume)
   WavFile.close()
@@ -520,7 +548,7 @@ else :
   WaterShowDir = sys.argv[1]
   
 WaterShowFile_FFT = WaterShowDir + "/" + WaterShowDir + ".fft"
-WaterShowFile_Sequence = WaterShowDir + "/" + WaterShowDir + ".seq"
+WaterShowFile_CFG = WaterShowDir + "/" + WaterShowDir + ".cfg"
 WaterShowFile_Audio = WaterShowDir + "/" + WaterShowDir + ".wav"
 
 if os.path.exists(WaterShowFile_FFT) :
@@ -529,16 +557,17 @@ else :
   print ("Not a FFT file: ",WaterShowFile_FFT) 
   #exit()
 
-if os.path.exists(WaterShowFile_Sequence) :
-  print ("Sequence file is: ",WaterShowFile_Sequence)
-  with open(WaterShowFile_Sequence,'r') as SequenceFile:
-    SequenceData = SequenceFile.read().splitlines()
-  del SequenceData[0]
+if os.path.exists(WaterShowFile_CFG) :
+  print ("Config file is: ",WaterShowFile_CFG)
+  with open(WaterShowFile_CFG,'r') as CFGFile:
+    CFGData = CFGFile.read().splitlines()
+  #del SequenceData[0]
+  CFGParser()
 
 else :
-  print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
-  SequenceData = []
-  #exit()
+  print ("Not a valid cfg File: ",WaterShowFile_CFG) 
+  CFGData = []
+  exit()
 
 if os.path.exists(WaterShowFile_Audio) :
   print ("Audio file is: ",WaterShowFile_Audio)
@@ -587,5 +616,8 @@ try:
       print("In main loop")
       time.sleep(5)
 
-except :
+except KeyboardInterrupt:
+  HardCleanExit()
+except Exception as e:
+  print ("Exception:",sys.exc_info()[0],"Argument:",str(e))
   HardCleanExit()
