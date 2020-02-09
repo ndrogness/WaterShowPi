@@ -51,7 +51,6 @@ V_CLOSE = 1
 #       [IsRunning,LastPushButtonTime]
 STATE = {'ISRUNNING': False, 'PUSHBUTTON_LASTTIME': int(round(time.time()*1000))}
 
-# WavChunkIntesity = [0,0,0,0,0,0,0,0]
 Freqs = [100, 500, 900, 20000]
 Freqweighting = [2, 4, 6, 1]
 
@@ -239,7 +238,7 @@ def PumpCtl (RunPump):
         GPIO.output(Pump[P_GPIO], P_RUN)
 
         if (STATE['ISRUNNING']):
-            print ("Starting Pump...Delaying:", PumpWarmStartDelay)
+            print("Starting Pump...Delaying:", PumpWarmStartDelay)
             time.sleep(PumpWarmStartDelay)
         else:
             print("Starting Pump...Delaying:", PumpColdStartDelay)
@@ -276,7 +275,6 @@ def check_signal_trigger(WavChunkIntensity, CurTime):
             if BASS['CurCycleCount'] == BASS['MaxConseqCycles']:
                 dprint('{0}: {1} -> Stoping: {2}'.format(CurTime, WavChunkIntensity,
                                                          Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME]))
-                #  print ("Stopng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
                 solenoid_send(BASS['Solenoids'][CurSolenoid], V_CLOSE)
                 BASS['IsRunning'] = False
                 BASS['CurCycleCount'] = 0
@@ -284,7 +282,6 @@ def check_signal_trigger(WavChunkIntensity, CurTime):
             else:
                 dprint('{0}: {1} -> Firing: {2}'.format(CurTime, WavChunkIntensity,
                                                          Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME]))
-                # print("Firing(", CurTime, "): ", Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
                 solenoid_send(BASS['Solenoids'][NextSolenoid], V_OPEN)
 
                 BASS['CurSolenoid'] = NextSolenoid
@@ -309,7 +306,6 @@ def check_signal_trigger(WavChunkIntensity, CurTime):
         if ElapsedTime > CHORUS['MinCycleInterval']:
             dprint('{0}: {1} -> Spindown: {2}'.format(CurTime, WavChunkIntensity,
                                                      Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
-            # print ("Spindn(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
             solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
             NextSolenoid = NextSolenoid + 1
             if NextSolenoid > len(CHORUS['Solenoids'])-1:
@@ -331,13 +327,11 @@ def check_signal_trigger(WavChunkIntensity, CurTime):
             if CHORUS['IsRunning']:
                 dprint('{0}: {1} -> Closing: {2}'.format(CurTime, WavChunkIntensity,
                                                           Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
-                #print("Closng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
                 solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
       
             if CHORUS['CurCycleCount'] == CHORUS['MaxConseqCycles']:
                 dprint('{0}: {1} -> Stoping: {2}'.format(CurTime, WavChunkIntensity,
                                                          Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
-                # print("Stopng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
                 solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
                 CHORUS['IsRunning'] = False
                 CHORUS['CurCycleCount'] = 0
@@ -345,7 +339,6 @@ def check_signal_trigger(WavChunkIntensity, CurTime):
             else:
                 dprint('{0}: {1} -> Firing: {2}'.format(CurTime, WavChunkIntensity,
                                                          Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME]))
-                # print("Firing(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
                 solenoid_send(CHORUS['Solenoids'][NextSolenoid], V_OPEN)
 
                 CHORUS['CurSolenoid'] = NextSolenoid
@@ -392,15 +385,8 @@ def watershow_start(songs_playlist):
         # Run Audio analysis on it, i.e. FFT
         audio_data = audio_file.read_analyze_chunk(frqs=Freqs, wghts=Freqweighting)
         chunk_counter = 1
-        # print(sys.getsizeof(audio_data))
 
         while sys.getsizeof(audio_data) > 16000 and STATE['ISRUNNING']:
-
-            # WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
-            # print(WavChunkIntensity)
-            # IntensitySend(WavChunkIntensity,CurTime)
-            # AudioOutput.write(WavData)
-            # WavData = WavFile.readframes(chunk)
 
             CurTime = int(round(time.time()*1000)) - StartTime
             check_signal_trigger(audio_file.chunk_levels, CurTime)
@@ -424,7 +410,6 @@ def watershow_start(songs_playlist):
         CHORUS['IsRunning'] = False
         CHORUS['CurTriggerTime'] = 0
         CHORUS['CurCycleCount'] = 0
-        #STATE['ISRUNNING']=False
 
     PumpCtl(False)
     init_solenoids()
