@@ -14,8 +14,8 @@ numpy -> pip3 install numpy
 Define outputs (GPIO Pins for solenoids and pump) in WaterShowPi.py
 
 ## Add music
-Put all Wave file songs in a directory called 'songs' in the current directory
-specified in the config file)
+Put all Wave file songs in a directory called 'songs' in the ~pi home directory
+
 
 ## Run
 Run WaterShowPi.py
