@@ -186,7 +186,7 @@ def solenoid_send(SolenoidX, NewState):
         if i == SolenoidX:
 
             if NewState == V_CLOSE and Solenoids[SolenoidX][S_STATUS] != V_CLOSE:
-                print("Changing state:", SolenoidX, ":", Solenoids[SolenoidX][S_STATUS], " -> ", V_CLOSE)
+                dprint('\tSolenoid {0} state change: {1} -> {2}'.format(SolenoidX, Solenoids[SolenoidX][S_STATUS], V_CLOSE))
                 GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
                 Solenoids[SolenoidX][S_STATUS] = V_CLOSE
                 if i == 3:
@@ -198,7 +198,7 @@ def solenoid_send(SolenoidX, NewState):
                     Solenoids[2][S_STATUS] = V_CLOSE
         
             if NewState == V_OPEN and Solenoids[SolenoidX][S_STATUS] != V_OPEN:
-                print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_OPEN)
+                dprint('\tSolenoid {0} state change: {1} -> {2}'.format(SolenoidX, Solenoids[SolenoidX][S_STATUS], V_OPEN))
                 GPIO.output(Solenoids[SolenoidX][S_GPIO], V_OPEN)
                 Solenoids[SolenoidX][S_STATUS] = V_OPEN
 
