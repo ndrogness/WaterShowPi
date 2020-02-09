@@ -5,14 +5,13 @@
 import RPi.GPIO as GPIO
 import sys
 import time
-import pygame
 import random
 import os
 import alsaaudio as aa
 import wave
-import numpy as np
 import FFT
-import Patterns
+import RogySequencer
+import RogyAudio
 
 
 
@@ -70,439 +69,294 @@ Solenoid_MinFireTime=.250
 SD=dict()
 
 
-#############################################
 def PushButton_Callback(channel):
+    return
 
-  return
 
-#############################################
 def OrigPushButton_Callback(channel):
 
+    PushButtonTime=int(round(time.time()*1000))
+    print (STATE,PushButtonTime)
 
-  PushButtonTime=int(round(time.time()*1000))
-  print (STATE,PushButtonTime)
+    if not STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
+        print("Starting WaterShow at time: ",PushButtonTime)
+        STATE['ISRUNNING']=True
+        STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
 
-  if not STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
-    print("Starting WaterShow at time: ",PushButtonTime)
-    STATE['ISRUNNING']=True
-    STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
-
-  if STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
-    print("Stopping WaterShow at time: ",PushButtonTime)
-    STATE['ISRUNNING']=False
-    STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
+    if STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
+        print("Stopping WaterShow at time: ",PushButtonTime)
+        STATE['ISRUNNING']=False
+        STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
 
 
 #############################################
 def InitGPIO ():
 
-  # for GPIO numbering, choose BCM  
-  GPIO.setmode(GPIO.BCM)  
+    # for GPIO numbering, choose BCM
+    GPIO.setmode(GPIO.BCM)
 
-  # Button Push to roll on GPIO14 (pin 8 rising edge)
-  GPIO.setup(14,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
-  # Setup event on for detecting push button
-  GPIO.add_event_detect(14,GPIO.RISING,callback=PushButton_Callback) 
+    # Button Push to roll on GPIO14 (pin 8 rising edge)
+    GPIO.setup(14,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
+    # Setup event on for detecting push button
+    GPIO.add_event_detect(14,GPIO.RISING,callback=PushButton_Callback)
 
-  # Setup Pump GPIO
-  GPIO.setup(Pump[P_GPIO], GPIO.OUT, initial=P_STOP)
+    # Setup Pump GPIO
+    GPIO.setup(Pump[P_GPIO], GPIO.OUT, initial=P_STOP)
 
-  for i in range(0,NumSolenoids):
-    # Add CurrentStatus and DoToggle
-    Solenoids[i].extend([V_CLOSE,False]) 
+    for i in range(0,NumSolenoids):
+        # Add CurrentStatus and DoToggle
+        Solenoids[i].extend([V_CLOSE,False])
 
-    # If enabled, setup GPIO for output
-    if Solenoids[i][S_ENABLED]:
-      #print 'Enabling S',i 
-      SD[Solenoids[i][S_NAME]]=i
-      GPIO.setup(Solenoids[i][S_GPIO], GPIO.OUT, initial=V_CLOSE)
+        # If enabled, setup GPIO for output
+        if Solenoids[i][S_ENABLED]:
+            SD[Solenoids[i][S_NAME]]=i
+            GPIO.setup(Solenoids[i][S_GPIO], GPIO.OUT, initial=V_CLOSE)
 
-  print (SD)
-#time.sleep(2.0);
+    print (SD)
 
-#######################################
 
-#############################################
 def InitSolenoids ():
 
-  GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
-  Solenoids[0][S_STATUS]=V_OPEN
-
-  for i in range(1,NumSolenoids):
-    if Solenoids[i][S_ENABLED]:
-      GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
-      Solenoids[i][S_STATUS]=V_CLOSE
-
-#######################################
-def PrintLayout (ShowStatus=True):
-
-  DS=[]
-  Line5=""
-  Line7=""
-
-  if ShowStatus:
-    for i in range(0,5):
-      if Solenoids[i][S_STATUS] == V_OPEN :
-        DS.insert(i,'O')
-      else :
-        DS.insert(i,'X')
-
-    if Solenoids[5][S_STATUS] == V_OPEN :
-      Line5=' -    O->^->^->^->^--*     -'
-    else :
-      Line5=' -    X--*--*--*--*--*     -'
-
-    if Solenoids[6][S_STATUS] == V_OPEN :
-      Line7=' -    *--^<-^<-^<-^<-O     -'
-    else :
-      Line7=' -    *--*--*--*--*--X     -'
-
-  else :
-    for i in range(0,5):
-      DS.insert(i,Solenoids[i][0])
-    Line5=' -   S5--*--*--*--*---*    -'
-    Line7=' -   *---*--*--*--*--S6    -'
-
-    #print '       ---------------' 
-    #print '      -               -' 
-    #print '     -                 -' 
-    #print '   S1                   S2' 
-    #print '  -                       -' 
-    #print ' -    S5--*--*--*--*--S6   -'
-    #print '-                           -' 
-    #print ' -    S7--*--*--*--*--S8   -'
-    #print '  -                       -' 
-    #print '   S3                   S4' 
-    #print '     -        S0       -' 
-    #print '      -               -' 
-    #print '       ---------------' 
-
-  os.system("clear")
-  print('       ---------------' )
-  print('      -               -' )
-  print('     -                 -' )
-  print('  ',DS[1],'                  ',DS[2])
-  print('  -                       -' )
-  print(Line5)
-  print('-                           -' )
-  print(Line7)
-  print('  -                       -' )
-  print('  ',DS[3],'                  ',DS[4])
-  print('     -       ',DS[0],'       -' )
-  print('      -               -' )
-  print('       ---------------' )
-  print('         Time:',CurTime)
-
-    
-#######################################
-
-#######################################
-'''
-def ServoSetAngle(angle):
-
-duty = angle / 18 + 2
-GPIO.output(03, True)
-pwm.ChangeDutyCycle(duty)
-sleep(1)
-GPIO.output(03, False)
-pwm.ChangeDutyCycle(0)
-'''
-#######################################
-
-
-#######################################
-#def ServoSetup:
-	#pwm=GPIO.PWM(03,50)
-	#pwm.start(0)
-	#SetAngle(45)
-	#pwm.stop()
-
-
-#######################################
-def SolenoidSend(SolenoidX,NewState) :
-
-  #SolendoidsOpen[1,2,3]
-  #SolendoidsClose[4,5,6]
-  #print("SolenoidX:",SolenoidX,NewState)
-
-  for i in range(1,NumSolenoids):
-    if i == SolenoidX:
-      if NewState == V_CLOSE and Solenoids[SolenoidX][S_STATUS] != V_CLOSE:
-        print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_CLOSE)
-        GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
-        Solenoids[SolenoidX][S_STATUS]=V_CLOSE
-        if i == 3:
-          GPIO.output(Solenoids[1][S_GPIO], V_CLOSE)
-          Solenoids[1][S_STATUS]=V_CLOSE
-
-        if i == 4:
-          GPIO.output(Solenoids[2][S_GPIO], V_CLOSE)
-          Solenoids[2][S_STATUS]=V_CLOSE
-        
-      if NewState == V_OPEN and Solenoids[SolenoidX][S_STATUS] != V_OPEN:
-        #print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_OPEN)
-        GPIO.output(Solenoids[SolenoidX][S_GPIO], V_OPEN)
-        Solenoids[SolenoidX][S_STATUS]=V_OPEN
-        #time.sleep(.250)
-        #GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
-        #Solenoids[SolenoidX][S_STATUS]=V_CLOSE
-
-        if i == 3:
-          GPIO.output(Solenoids[1][S_GPIO], V_OPEN)
-          Solenoids[1][S_STATUS]=V_OPEN
-        if i == 4:
-          GPIO.output(Solenoids[2][S_GPIO], V_OPEN)
-          Solenoids[2][S_STATUS]=V_OPEN
-
-    elif NewState == V_OPEN:
-      GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
-      Solenoids[i][S_STATUS]=V_CLOSE
-
-  BackPressure=True        
-  #GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
-  #Solenoids[0][S_STATUS]=V_OPEN
-
-  for i in range (1,NumSolenoids) :
-    if Solenoids[i][S_STATUS] == V_OPEN:
-      BackPressure=False
-
-  # Close backpressure valve
-  if BackPressure:
     GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
-    Solenoids[0][S_STATUS]=V_OPEN
-  else:
-    GPIO.output(Solenoids[0][S_GPIO], V_CLOSE)
-    Solenoids[0][S_STATUS]=V_CLOSE
+    Solenoids[0][S_STATUS] = V_OPEN
+
+    for i in range(1, NumSolenoids):
+        if Solenoids[i][S_ENABLED]:
+            GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
+            Solenoids[i][S_STATUS] = V_CLOSE
 
 
-#######################################
-def SequenceProcessor() :
+def SolenoidSend(SolenoidX, NewState):
 
-#AtTime(ms)|Pattern(On,Off,Toggle,Pulse,Sequence,Tilt)|PatternOptions|SolenoidMatrix|Duration(ms)
-#2000|Pulse|gap:500|S1=0,S2:1,S3:0,S4:1|17000
-#20000|Sequence|gap:500|S1:1,S2:2,S3:3,S4:4|10000
-#40000|On|revert:yes|S5,S8|5000
-#50000|Off|revert:no|S0,S4|10000
-#60000|Tilt|angle:45|S0,S4|10000
+    for i in range(1, NumSolenoids):
+        if i == SolenoidX:
+
+            if NewState == V_CLOSE and Solenoids[SolenoidX][S_STATUS] != V_CLOSE:
+                print("Changing state:", SolenoidX, ":", Solenoids[SolenoidX][S_STATUS], " -> ", V_CLOSE)
+                GPIO.output(Solenoids[SolenoidX][S_GPIO], V_CLOSE)
+                Solenoids[SolenoidX][S_STATUS] = V_CLOSE
+                if i == 3:
+                    GPIO.output(Solenoids[1][S_GPIO], V_CLOSE)
+                    Solenoids[1][S_STATUS] = V_CLOSE
+
+                if i == 4:
+                    GPIO.output(Solenoids[2][S_GPIO], V_CLOSE)
+                    Solenoids[2][S_STATUS] = V_CLOSE
+        
+            if NewState == V_OPEN and Solenoids[SolenoidX][S_STATUS] != V_OPEN:
+                print("Changing state:",SolenoidX,":",Solenoids[SolenoidX][S_STATUS]," -> ",V_OPEN)
+                GPIO.output(Solenoids[SolenoidX][S_GPIO], V_OPEN)
+                Solenoids[SolenoidX][S_STATUS] = V_OPEN
+
+                if i == 3:
+                    GPIO.output(Solenoids[1][S_GPIO], V_OPEN)
+                    Solenoids[1][S_STATUS] = V_OPEN
+                if i == 4:
+                    GPIO.output(Solenoids[2][S_GPIO], V_OPEN)
+                    Solenoids[2][S_STATUS] = V_OPEN
+
+        elif NewState == V_OPEN:
+            GPIO.output(Solenoids[i][S_GPIO], V_CLOSE)
+            Solenoids[i][S_STATUS] = V_CLOSE
+
+    # Figure out if we need to build pressure or not
+    BackPressure = True
+    for i in range (1,NumSolenoids) :
+        if Solenoids[i][S_STATUS] == V_OPEN:
+        BackPressure = False
+
+    # Close backpressure valve
+    if BackPressure:
+        GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
+        Solenoids[0][S_STATUS] = V_OPEN
+    else:
+        GPIO.output(Solenoids[0][S_GPIO], V_CLOSE)
+        Solenoids[0][S_STATUS] = V_CLOSE
 
 
-  Timeline=[]
-  
-  for i in range(0,len(SequenceData)):
-    NextPattern=SequenceData[i].split("|")
-    print(NextPattern)
-    if NextPattern[1] == 'Pulse' :
-      Patterns.Pulse(NextPattern[2],NextPattern[3],Solenoids,Timeline)
-
-
-
-#######################################
 def PumpCtl (RunPump):
 
-  # Always make sure relief valve is on
-  GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
-  Solenoids[0][S_STATUS]=V_OPEN
+    # Always make sure relief valve is on
+    GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
+    Solenoids[0][S_STATUS]=V_OPEN
 
-  if RunPump and not Pump[P_STATE]:
-    GPIO.output(Pump[P_GPIO], P_RUN)
+    if RunPump and not Pump[P_STATE]:
+        GPIO.output(Pump[P_GPIO], P_RUN)
 
-    if (STATE['ISRUNNING']):
-      print ("Starting Pump...Delaying:",PumpWarmStartDelay)
-      time.sleep(PumpWarmStartDelay)
-    else:
-      print ("Starting Pump...Delaying:",PumpColdStartDelay)
-      time.sleep(PumpColdStartDelay)
+        if (STATE['ISRUNNING']):
+            print ("Starting Pump...Delaying:", PumpWarmStartDelay)
+            time.sleep(PumpWarmStartDelay)
+        else:
+            print("Starting Pump...Delaying:", PumpColdStartDelay)
+            time.sleep(PumpColdStartDelay)
+            Pump[P_STATE] = True
 
-    Pump[P_STATE]=True
+    if not RunPump and Pump[P_STATE]:
+        GPIO.output(Pump[P_GPIO], P_STOP)
+        print("Stopping Pump...")
+        Pump[P_STATE] = False
 
-  if not RunPump and Pump[P_STATE]:
-    GPIO.output(Pump[P_GPIO], P_STOP)
-    print ("Stopping Pump...")
-    Pump[P_STATE]=False
-     
+
 #######################################
-def IntensitySend(WavChunkIntensity,CurTime):
+def IntensitySend(WavChunkIntensity, CurTime):
 
+    if not CHORUS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] >= BASS['IntesityMinTrigger']:
 
-#BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':1000,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
+        CurSolenoid = BASS['CurSolenoid']
+        NextSolenoid = BASS['NextSolenoid']
+        ElapsedTime = CurTime - BASS['CurTriggerTime']
 
-#  if BASS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] < BASS['IntesityMinTrigger']:
-#    CurSolenoid=BASS['CurSolenoid']
-#    NextSolenoid=BASS['NextSolenoid']
-#    ElapsedTime=CurTime-BASS['CurTriggerTime']
-#    if ElapsedTime > BASS['MinCycleInterval']:
-#      print ("Spindn(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-#      SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
-#      NextSolenoid=NextSolenoid+1
-#      if NextSolenoid > len(BASS['Solenoids'])-1 :
-#        BASS['NextSolenoid']=0
-#      else :
-#        BASS['NextSolenoid']=NextSolenoid
-#
-#      BASS['IsRunning']=False
-#      BASS['CurCycleCount'] = 0
+        if ElapsedTime > BASS['MinCycleInterval']:
 
-  if not CHORUS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] >= BASS['IntesityMinTrigger']:
+            if BASS['IsRunning']:
+                #  print ("Closng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
+                SolenoidSend(BASS['Solenoids'][CurSolenoid], V_CLOSE)
 
-    CurSolenoid=BASS['CurSolenoid']
-    NextSolenoid=BASS['NextSolenoid']
-    ElapsedTime=CurTime-BASS['CurTriggerTime']
+            if BASS['CurCycleCount'] == BASS['MaxConseqCycles']:
+                #  print ("Stopng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
+                SolenoidSend(BASS['Solenoids'][CurSolenoid], V_CLOSE)
+                BASS['IsRunning'] = False
+                BASS['CurCycleCount'] = 0
 
-    if ElapsedTime > BASS['MinCycleInterval']:
+            else:
+                print("Firing(", CurTime, "): ", Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
+                SolenoidSend(BASS['Solenoids'][NextSolenoid], V_OPEN)
 
-      if BASS['IsRunning']:
-      #  print ("Closng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
+                BASS['CurSolenoid'] = NextSolenoid
 
+                NextSolenoid = NextSolenoid+1
+                if NextSolenoid > len(BASS['Solenoids'])-1:
+                    BASS['NextSolenoid'] = 0
+                else:
+                    BASS['NextSolenoid'] = NextSolenoid
 
-      
-      if BASS['CurCycleCount'] == BASS['MaxConseqCycles']:
-      #  print ("Stopng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][CurSolenoid],V_CLOSE)
-        BASS['IsRunning']=False
-        BASS['CurCycleCount'] = 0
-
-      else:
-        print ("Firing(",CurTime,"): ",Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(BASS['Solenoids'][NextSolenoid],V_OPEN)
-
-        BASS['CurSolenoid']=NextSolenoid
-
-        NextSolenoid=NextSolenoid+1
-        if NextSolenoid > len(BASS['Solenoids'])-1 :
-          BASS['NextSolenoid']=0
-        else :
-          BASS['NextSolenoid']=NextSolenoid
-
-        BASS['IsRunning']=True
-        BASS['CurTriggerTime']=CurTime
-        BASS['CurCycleCount']+=CurTime
-        CHORUS['CurCycleCount']=0
+                BASS['IsRunning'] = True
+                BASS['CurTriggerTime'] = CurTime
+                BASS['CurCycleCount'] += CurTime
+                CHORUS['CurCycleCount'] = 0
  
 
-  if CHORUS['IsRunning'] and WavChunkIntensity[CHORUS['FreqIndex']] < CHORUS['IntesityMinTrigger']:
-    CurSolenoid=CHORUS['CurSolenoid']
-    NextSolenoid=CHORUS['NextSolenoid']
-    ElapsedTime=CurTime-CHORUS['CurTriggerTime']
-    if ElapsedTime > CHORUS['MinCycleInterval']:
-      print ("Spindn(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-      SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-      NextSolenoid=NextSolenoid+1
-      if NextSolenoid > len(CHORUS['Solenoids'])-1 :
-        CHORUS['NextSolenoid']=0
-      else :
-        CHORUS['NextSolenoid']=NextSolenoid
+    if CHORUS['IsRunning'] and WavChunkIntensity[CHORUS['FreqIndex']] < CHORUS['IntesityMinTrigger']:
+        CurSolenoid = CHORUS['CurSolenoid']
+        NextSolenoid = CHORUS['NextSolenoid']
+        ElapsedTime = CurTime - CHORUS['CurTriggerTime']
 
-      CHORUS['IsRunning']=False
-      CHORUS['CurCycleCount'] = 0
+        if ElapsedTime > CHORUS['MinCycleInterval']:
+            print ("Spindn(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+            SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+            NextSolenoid = NextSolenoid + 1
+            if NextSolenoid > len(CHORUS['Solenoids'])-1:
+                CHORUS['NextSolenoid'] = 0
+            else:
+                CHORUS['NextSolenoid'] = NextSolenoid
 
-  if WavChunkIntensity[CHORUS['FreqIndex']] >= CHORUS['IntesityMinTrigger']:
-
-    CurSolenoid=CHORUS['CurSolenoid']
-    NextSolenoid=CHORUS['NextSolenoid']
-    ElapsedTime=CurTime-CHORUS['CurTriggerTime']
-
-    if ElapsedTime > CHORUS['MinCycleInterval']:
-
-      if CHORUS['IsRunning']:
-        print ("Closng(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-      
-      if CHORUS['CurCycleCount'] == CHORUS['MaxConseqCycles']:
-        print ("Stopng(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][CurSolenoid],V_CLOSE)
-        CHORUS['IsRunning']=False
+        CHORUS['IsRunning'] = False
         CHORUS['CurCycleCount'] = 0
 
-      else:
-        print ("Firing(",CurTime,"): ",Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME],WavChunkIntensity)
-        SolenoidSend(CHORUS['Solenoids'][NextSolenoid],V_OPEN)
 
-        CHORUS['CurSolenoid']=NextSolenoid
 
-        NextSolenoid=NextSolenoid+1
-        if NextSolenoid > len(CHORUS['Solenoids'])-1 :
-          CHORUS['NextSolenoid']=0
-        else :
-          CHORUS['NextSolenoid']=NextSolenoid
+    if WavChunkIntensity[CHORUS['FreqIndex']] >= CHORUS['IntesityMinTrigger']:
 
-        CHORUS['IsRunning']=True
-        CHORUS['CurTriggerTime']=CurTime
-        CHORUS['CurCycleCount']+=1
-        BASS['CurCycleCount']=0
+        CurSolenoid = CHORUS['CurSolenoid']
+        NextSolenoid = CHORUS['NextSolenoid']
+        ElapsedTime = CurTime - CHORUS['CurTriggerTime']
 
-        
-        
+        if ElapsedTime > CHORUS['MinCycleInterval']:
+
+            if CHORUS['IsRunning']:
+                print("Closng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+                SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+      
+            if CHORUS['CurCycleCount'] == CHORUS['MaxConseqCycles']:
+                print("Stopng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+                SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+                CHORUS['IsRunning'] = False
+                CHORUS['CurCycleCount'] = 0
+
+            else:
+                print("Firing(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
+                SolenoidSend(CHORUS['Solenoids'][NextSolenoid], V_OPEN)
+
+                CHORUS['CurSolenoid'] = NextSolenoid
+
+                NextSolenoid = NextSolenoid + 1
+                if NextSolenoid > len(CHORUS['Solenoids'])-1:
+                    CHORUS['NextSolenoid'] = 0
+                else:
+                    CHORUS['NextSolenoid'] = NextSolenoid
+
+                CHORUS['IsRunning'] = True
+                CHORUS['CurTriggerTime'] = CurTime
+                CHORUS['CurCycleCount'] += 1
+                BASS['CurCycleCount'] = 0
 
 
 #######################################
 def WaterShowStart():
 
-  # Start pump
-  if not Pump[P_STATE]:
-    PumpCtl(True)
+    # Start pump
+    if not Pump[P_STATE]:
+        PumpCtl(True)
     
-  # Set up audio
-  AudioMixer = aa.Mixer()
-  vol = AudioMixer.getvolume()
-  AudioVolume = int(vol[0])
-  AudioMixer.setvolume(RunVolume)
+    # Set up audio
+    AudioMixer = aa.Mixer()
+    vol = AudioMixer.getvolume()
+    AudioVolume = int(vol[0])
+    AudioMixer.setvolume(RunVolume)
 
-  WavFile = wave.open(WaterShowFile_Audio,'r')
-  sample_rate = WavFile.getframerate()
-  no_channels = WavFile.getnchannels()
-  chunk       = 4096 # Use a multiple of 8
-  AudioOutput = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL)
-  AudioOutput.setchannels(no_channels)
-  AudioOutput.setrate(sample_rate)
-  AudioOutput.setformat(aa.PCM_FORMAT_S16_LE)
-  AudioOutput.setperiodsize(chunk)
+    WavFile = wave.open(WaterShowFile_Audio,'r')
+    sample_rate = WavFile.getframerate()
+    no_channels = WavFile.getnchannels()
+    chunk = 4096
+    AudioOutput = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL)
+    AudioOutput.setchannels(no_channels)
+    AudioOutput.setrate(sample_rate)
+    AudioOutput.setformat(aa.PCM_FORMAT_S16_LE)
+    AudioOutput.setperiodsize(chunk)
 
-  WavData = WavFile.readframes(chunk)
-  StartTime = int(round(time.time()*1000))
-  CurrentChunkNum = 1 #ignore the header line
-  CurTime = 0
-  
-  while sys.getsizeof(WavData) > 16000 and STATE['ISRUNNING']:
-    WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
-    CurTime = int(round(time.time()*1000)) - StartTime
-    print(WavChunkIntensity)
-    IntensitySend(WavChunkIntensity,CurTime)
-    AudioOutput.write(WavData)
     WavData = WavFile.readframes(chunk)
+    StartTime = int(round(time.time()*1000))
+    CurrentChunkNum = 1 #ignore the header line
+    CurTime = 0
+  
+    while sys.getsizeof(WavData) > 16000 and STATE['ISRUNNING']:
+        WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
+        CurTime = int(round(time.time()*1000)) - StartTime
+        print(WavChunkIntensity)
+        IntensitySend(WavChunkIntensity,CurTime)
+        AudioOutput.write(WavData)
+        WavData = WavFile.readframes(chunk)
 
-  WavChunkIntensity[:]
-  BASS['IsRunning']=False
-  BASS['CurTriggerTime']=0
-  BASS['CurCycleCount']=0
-  CHORUS['IsRunning']=False
-  CHORUS['CurTriggerTime']=0
-  CHORUS['CurCycleCount']=0
-  #STATE['ISRUNNING']=False
-  AudioOutput.close() 
-  AudioMixer.setvolume(AudioVolume)
-  WavFile.close()
-  PumpCtl(False)
-  InitSolenoids()
- 
+    WavChunkIntensity[:]
+    BASS['IsRunning']=False
+    BASS['CurTriggerTime']=0
+    BASS['CurCycleCount']=0
+    CHORUS['IsRunning']=False
+    CHORUS['CurTriggerTime']=0
+    CHORUS['CurCycleCount']=0
+    #STATE['ISRUNNING']=False
+    AudioOutput.close()
+    AudioMixer.setvolume(AudioVolume)
+    WavFile.close()
+    PumpCtl(False)
+    InitSolenoids()
+
+
 #######################################
 def WaterShowStop ():
 
-  for i in range(0,NumSolenoids):
-    # Add CurrentStatus and DoToggle
-    Solenoids[i].extend([V_CLOSE,False]) 
-  #pygame.mixer.stop()
-  #pygame.mixer.quit()
-  
+    for i in range(0, NumSolenoids):
+        # Add CurrentStatus and DoToggle
+        Solenoids[i].extend([V_CLOSE, False])
+
+
 #######################################
-def HardCleanExit():
+def clean_exit():
 
-  GPIO.cleanup()
-  #pygame.mixer.stop()
-  #pygame.mixer.quit()
-  exit()
+    GPIO.cleanup()
+    exit()
   
-
+'''
 #######################################
 def Usage():
   print("WaterShowPi.py Directory")
@@ -535,57 +389,66 @@ if os.path.exists(WaterShowFile_Sequence) :
     SequenceData = SequenceFile.read().splitlines()
   del SequenceData[0]
 
-else :
-  print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
-  SequenceData = []
-  #exit()
+else:
+    print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
+    SequenceData = []
+    #exit()
 
-if os.path.exists(WaterShowFile_Audio) :
-  print ("Audio file is: ",WaterShowFile_Audio)
-else :
-  print ("Not a valid Audio File: ",WaterShowFile_Audio) 
-  exit()
+if os.path.exists(WaterShowFile_Audio):
+    print ("Audio file is: ",WaterShowFile_Audio)
+else:
+    print ("Not a valid Audio File: ",WaterShowFile_Audio) 
+    exit()
 
-
+'''
 
 InitGPIO()
 InitSolenoids()
 
-# Read Sequence file and process it
-Pattern=[]
-#SequenceProcessor() 
-#exit()
 
-#pygame.mixer.init()
-#pygame.mixer.music.load(WaterShowFile_Audio)
-#pygame.mixer.music.play()
+if __name__ == '__main__':
+    '''
+    Main context
+    '''
 
+    try:
 
-try:
-#
-#  while CurTime < 210000 :
-#
-#    CurTime = int(round(time.time()*1000)) - StartTime
-#    #print StartTime
-#    #print CurTime
-#    fun=CurTime % NumSolenoids
-#    Solenoids[fun][S_STATUS]=V_OPEN
-#    GPIO.output(Solenoids[fun][S_GPIO],V_OPEN)
-#    PrintLayout()
-#    Solenoids[fun][S_STATUS]=V_CLOSE
-#    GPIO.output(Solenoids[fun][S_GPIO],V_CLOSE)
-#    time.sleep(.500)
+        # Load in config
+        cfg = read_config()
 
-#  WaterShowStart()
+        # Get some control of the buttons
+        # setup_buttons(pause_gpio_pin=cfg['pause_gpio_pin'], play_gpio_pin=cfg['play_gpio_pin'])
 
-  while True:
-    #if (STATE['ISRUNNING']) :
-      STATE['ISRUNNING']=True
-      WaterShowStart()
-      time.sleep(10)
+        # Load in sequencer
+        sr = RogySequencer.Sequencer(cfgfile='XmasSweaterShowPi.cfg', outputs_enable=cfg['outputs_enable'],
+                                     debug=cfg['debug'])
 
-      print("In main loop")
-      time.sleep(5)
+        # Frequencies we're interested in
+        signals = RogyAudio.Signals()
+        freqs = signals.frequencies
+        weights = signals.weights
+        fidelities = signals.fidelities
 
-except :
-  HardCleanExit()
+        print("Using Frequencies:", freqs)
+        print("Using Weights:", weights)
+        print("Using Fidelities:", fidelities)
+
+        # Build a playlist of songs
+        playlist = build_playlist('/home/pi/RogySweater/songs')
+
+        loop_counter = 0
+        while True:
+            STATE['ISRUNNING'] = True
+            WaterShowStart()
+            # xmas_sweater_show_start()
+
+            time.sleep(2)
+            loop_counter += 1
+
+    except KeyboardInterrupt:
+        clean_exit()
+
+    except Exception as e:
+        print("Exception:", sys.exc_info()[0], "Argument:", str(e))
+        clean_exit()
+
