@@ -1,121 +1,176 @@
 #!/usr/bin/env python3
 
-#from time import sleep
-
 import RPi.GPIO as GPIO
 import sys
 import time
-import random
-import os
-import alsaaudio as aa
-import wave
-import FFT
-import RogySequencer
 import RogyAudio
-
-
-
-S_NAME=0
-S_ENABLED=1
-S_GPIO=2
-S_STATUS=3
-S_TOGGLE=4
-
-PumpColdStartDelay=5
-PumpWarmStartDelay=4
-RunVolume=100
-
-P_STATE=0
-P_GPIO=1
-P_RUN=0
-P_STOP=1
-
-V_OPEN=0
-V_CLOSE=1
-
-#       [IsRunning,LastPushButtonTime]
-STATE = {'ISRUNNING':False,'PUSHBUTTON_LASTTIME':int(round(time.time()*1000))}
-#print (STATE)
-
-WavChunkIntesity = [0,0,0,0,0,0,0,0]
-Freqs=[100,500,900,20000]
-Freqweighting=[2,4,6,1]
 
 ######## Solenoid Definition ################
 #    [Name,Enabled {True|False},GPIO]
-S0 = ['S0',True,17]
-S1 = ['S1',True,27]
-S2 = ['S2',True,22]
-S3 = ['S3',True,10]
-S4 = ['S4',True,9]
-S5 = ['S5',True,11]
-S6 = ['S6',True,13]
+S0 = ['S0', True, 17]
+S1 = ['S1', True, 27]
+S2 = ['S2', True, 22]
+S3 = ['S3', True, 10]
+S4 = ['S4', True, 9]
+S5 = ['S5', True, 11]
+S6 = ['S6', True, 13]
+Solenoids = [S0, S1, S2, S3, S4, S5, S6]
+BassSolenoids = [3, 4]
+ChorusSolenoids = [5, 6]
 
-BassSolenoids=[3,4]
-ChorusSolenoids=[5,6]
-
-BASS={'FreqIndex':0, 'IntesityMinTrigger':8,'Solenoids':BassSolenoids,'MinCycleInterval':250,'MaxConseqCycles': 30, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0, 'IsRunning':False}
-
-CHORUS={'FreqIndex':2, 'IntesityMinTrigger':8,'Solenoids':ChorusSolenoids,'MinCycleInterval':2000,'MaxConseqCycles': 10, 'CurTriggerTime':0,'CurCycleCount':0, 'CurSolenoid':0,'NextSolenoid':0,'IsRunning':False}
-
+###### Pump Definition ####
 #      [IsRunning {True|False},GPIO]
-Pump = [False,23]
+Pump = [False, 23]
 
-Solenoids = [S0,S1,S2,S3,S4,S5,S6]
-NumSolenoids=len(Solenoids)
+########## Control Buttons ###########
+# GPIO for Play and Pause (set to 0 if not using)
+PLAY_BUTTON_GPIO = 5
+PAUSE_BUTTON_GPIO = 6
+DEBUG = False
 
-Solenoid_MinFireTime=.250
+####################### No edit below this ##########################
+### Globals...yeh I know
+CAN_PLAY = True
+SONG_PAUSED = False
+NEXT_SONG = False
+S_NAME = 0
+S_ENABLED = 1
+S_GPIO = 2
+S_STATUS = 3
+S_TOGGLE = 4
+PumpColdStartDelay = 5
+PumpWarmStartDelay = 4
+RunVolume = 100
+P_STATE = 0
+P_GPIO = 1
+P_RUN = 0
+P_STOP = 1
+V_OPEN = 0
+V_CLOSE = 1
 
-SD=dict()
+#       [IsRunning,LastPushButtonTime]
+STATE = {'ISRUNNING': False, 'PUSHBUTTON_LASTTIME': int(round(time.time()*1000))}
+
+# WavChunkIntesity = [0,0,0,0,0,0,0,0]
+Freqs = [100, 500, 900, 20000]
+Freqweighting = [2, 4, 6, 1]
+
+BASS = {
+    'FreqIndex': 0,
+    'IntesityMinTrigger': 8,
+    'Solenoids': BassSolenoids,
+    'MinCycleInterval': 250,
+    'MaxConseqCycles': 30,
+    'CurTriggerTime': 0,
+    'CurCycleCount': 0,
+    'CurSolenoid': 0,
+    'NextSolenoid': 0,
+    'IsRunning': False
+    }
+
+CHORUS = {
+    'FreqIndex': 2,
+    'IntesityMinTrigger': 8,
+    'Solenoids': ChorusSolenoids,
+    'MinCycleInterval': 2000,
+    'MaxConseqCycles': 10,
+    'CurTriggerTime': 0,
+    'CurCycleCount': 0,
+    'CurSolenoid': 0,
+    'NextSolenoid': 0,
+    'IsRunning': False
+    }
+
+NumSolenoids = len(Solenoids)
+Solenoid_MinFireTime = .250
+SD = dict()
 
 
-def PushButton_Callback(channel):
-    return
+def dprint(msg):
+    '''
+    Print if Debug is true
+    :param msg:
+    :return:
+    '''
+    if DEBUG is True:
+        print(msg)
 
 
-def OrigPushButton_Callback(channel):
+def pause_callback(channel):
+    '''
+    Call back function when PAUSE button is pressed
+    :param channel:
+    :return:
+    '''
+    global CAN_PLAY
+    global SONG_PAUSED
+    global NEXT_SONG
 
-    PushButtonTime=int(round(time.time()*1000))
-    print (STATE,PushButtonTime)
+    dprint('Pause Pressed -> Can Play:{0}, Paused:{1}, Next:{2}'.format(CAN_PLAY, SONG_PAUSED, NEXT_SONG))
+    if CAN_PLAY is False:
+        CAN_PLAY = False
 
-    if not STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
-        print("Starting WaterShow at time: ",PushButtonTime)
-        STATE['ISRUNNING']=True
-        STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
+    elif SONG_PAUSED is True:
+        SONG_PAUSED = False
+        CAN_PLAY = True
 
-    if STATE['ISRUNNING'] and PushButtonTime > STATE['PUSHBUTTON_LASTTIME']+5000 :
-        print("Stopping WaterShow at time: ",PushButtonTime)
-        STATE['ISRUNNING']=False
-        STATE['PUSHBUTTON_LASTTIME']=PushButtonTime
+    elif SONG_PAUSED is False:
+        SONG_PAUSED = True
+    else:
+        CAN_PLAY = False
+        SONG_PAUSED = False
 
 
-#############################################
-def InitGPIO ():
+def play_callback(channel):
+    '''
+    Call back function when PLAY button is pressed
+    :param channel: GPIO channel
+    :return:
+    '''
+    global CAN_PLAY
+    global SONG_PAUSED
+    global NEXT_SONG
+
+    dprint('Play Pressed -> Can Play:{0}, Paused:{1}, Next:{2}'.format(CAN_PLAY, SONG_PAUSED, NEXT_SONG))
+    if CAN_PLAY is False:
+        CAN_PLAY = True
+    elif NEXT_SONG is False:
+        NEXT_SONG = True
+    else:
+        NEXT_SONG = False
+
+    SONG_PAUSED = False
+
+
+def init_gpio():
 
     # for GPIO numbering, choose BCM
     GPIO.setmode(GPIO.BCM)
 
-    # Button Push to roll on GPIO14 (pin 8 rising edge)
-    GPIO.setup(14,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
-    # Setup event on for detecting push button
-    GPIO.add_event_detect(14,GPIO.RISING,callback=PushButton_Callback)
+    if PAUSE_BUTTON_GPIO > 1:
+        GPIO.setup(PAUSE_BUTTON_GPIO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.add_event_detect(PAUSE_BUTTON_GPIO, GPIO.FALLING, callback=pause_callback, bouncetime=300)
+
+    if PLAY_BUTTON_GPIO > 1:
+        GPIO.setup(PLAY_BUTTON_GPIO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.add_event_detect(PLAY_BUTTON_GPIO, GPIO.FALLING, callback=play_callback, bouncetime=300)
 
     # Setup Pump GPIO
     GPIO.setup(Pump[P_GPIO], GPIO.OUT, initial=P_STOP)
 
-    for i in range(0,NumSolenoids):
+    for i in range(0, NumSolenoids):
         # Add CurrentStatus and DoToggle
-        Solenoids[i].extend([V_CLOSE,False])
+        Solenoids[i].extend([V_CLOSE, False])
 
         # If enabled, setup GPIO for output
         if Solenoids[i][S_ENABLED]:
-            SD[Solenoids[i][S_NAME]]=i
+            SD[Solenoids[i][S_NAME]] = i
             GPIO.setup(Solenoids[i][S_GPIO], GPIO.OUT, initial=V_CLOSE)
 
-    print (SD)
+    print('Configured Solendoids ->', SD)
 
 
-def InitSolenoids ():
+def init_solenoids():
 
     GPIO.output(Solenoids[0][S_GPIO], V_OPEN)
     Solenoids[0][S_STATUS] = V_OPEN
@@ -126,7 +181,7 @@ def InitSolenoids ():
             Solenoids[i][S_STATUS] = V_CLOSE
 
 
-def SolenoidSend(SolenoidX, NewState):
+def solenoid_send(SolenoidX, NewState):
 
     for i in range(1, NumSolenoids):
         if i == SolenoidX:
@@ -163,7 +218,7 @@ def SolenoidSend(SolenoidX, NewState):
     BackPressure = True
     for i in range (1,NumSolenoids) :
         if Solenoids[i][S_STATUS] == V_OPEN:
-        BackPressure = False
+            BackPressure = False
 
     # Close backpressure valve
     if BackPressure:
@@ -197,8 +252,13 @@ def PumpCtl (RunPump):
         Pump[P_STATE] = False
 
 
-#######################################
-def IntensitySend(WavChunkIntensity, CurTime):
+def check_signal_trigger(WavChunkIntensity, CurTime):
+    '''
+    Check the intensity of the Wav signals and fire solenoids if needed
+    :param WavChunkIntensity: Signal data from Wave file chunk
+    :param CurTime: Current time
+    :return:
+    '''
 
     if not CHORUS['IsRunning'] and WavChunkIntensity[BASS['FreqIndex']] >= BASS['IntesityMinTrigger']:
 
@@ -209,18 +269,23 @@ def IntensitySend(WavChunkIntensity, CurTime):
         if ElapsedTime > BASS['MinCycleInterval']:
 
             if BASS['IsRunning']:
-                #  print ("Closng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-                SolenoidSend(BASS['Solenoids'][CurSolenoid], V_CLOSE)
+                dprint('{0}: {1} -> Closing: {2}'.format(CurTime, WavChunkIntensity,
+                                                         Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME]))
+                solenoid_send(BASS['Solenoids'][CurSolenoid], V_CLOSE)
 
             if BASS['CurCycleCount'] == BASS['MaxConseqCycles']:
+                dprint('{0}: {1} -> Stoping: {2}'.format(CurTime, WavChunkIntensity,
+                                                         Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME]))
                 #  print ("Stopng(",CurTime,"): ",Solenoids[BASS['Solenoids'][CurSolenoid]][S_NAME],WavChunkIntensity)
-                SolenoidSend(BASS['Solenoids'][CurSolenoid], V_CLOSE)
+                solenoid_send(BASS['Solenoids'][CurSolenoid], V_CLOSE)
                 BASS['IsRunning'] = False
                 BASS['CurCycleCount'] = 0
 
             else:
-                print("Firing(", CurTime, "): ", Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
-                SolenoidSend(BASS['Solenoids'][NextSolenoid], V_OPEN)
+                dprint('{0}: {1} -> Firing: {2}'.format(CurTime, WavChunkIntensity,
+                                                         Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME]))
+                # print("Firing(", CurTime, "): ", Solenoids[BASS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
+                solenoid_send(BASS['Solenoids'][NextSolenoid], V_OPEN)
 
                 BASS['CurSolenoid'] = NextSolenoid
 
@@ -242,8 +307,10 @@ def IntensitySend(WavChunkIntensity, CurTime):
         ElapsedTime = CurTime - CHORUS['CurTriggerTime']
 
         if ElapsedTime > CHORUS['MinCycleInterval']:
-            print ("Spindn(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
-            SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+            dprint('{0}: {1} -> Spindown: {2}'.format(CurTime, WavChunkIntensity,
+                                                     Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
+            # print ("Spindn(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+            solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
             NextSolenoid = NextSolenoid + 1
             if NextSolenoid > len(CHORUS['Solenoids'])-1:
                 CHORUS['NextSolenoid'] = 0
@@ -252,8 +319,6 @@ def IntensitySend(WavChunkIntensity, CurTime):
 
         CHORUS['IsRunning'] = False
         CHORUS['CurCycleCount'] = 0
-
-
 
     if WavChunkIntensity[CHORUS['FreqIndex']] >= CHORUS['IntesityMinTrigger']:
 
@@ -264,18 +329,24 @@ def IntensitySend(WavChunkIntensity, CurTime):
         if ElapsedTime > CHORUS['MinCycleInterval']:
 
             if CHORUS['IsRunning']:
-                print("Closng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
-                SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+                dprint('{0}: {1} -> Closing: {2}'.format(CurTime, WavChunkIntensity,
+                                                          Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
+                #print("Closng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+                solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
       
             if CHORUS['CurCycleCount'] == CHORUS['MaxConseqCycles']:
-                print("Stopng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
-                SolenoidSend(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
+                dprint('{0}: {1} -> Stoping: {2}'.format(CurTime, WavChunkIntensity,
+                                                         Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME]))
+                # print("Stopng(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][CurSolenoid]][S_NAME], WavChunkIntensity)
+                solenoid_send(CHORUS['Solenoids'][CurSolenoid], V_CLOSE)
                 CHORUS['IsRunning'] = False
                 CHORUS['CurCycleCount'] = 0
 
             else:
-                print("Firing(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
-                SolenoidSend(CHORUS['Solenoids'][NextSolenoid], V_OPEN)
+                dprint('{0}: {1} -> Firing: {2}'.format(CurTime, WavChunkIntensity,
+                                                         Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME]))
+                # print("Firing(", CurTime, "): ", Solenoids[CHORUS['Solenoids'][NextSolenoid]][S_NAME], WavChunkIntensity)
+                solenoid_send(CHORUS['Solenoids'][NextSolenoid], V_OPEN)
 
                 CHORUS['CurSolenoid'] = NextSolenoid
 
@@ -291,120 +362,87 @@ def IntensitySend(WavChunkIntensity, CurTime):
                 BASS['CurCycleCount'] = 0
 
 
-#######################################
-def WaterShowStart():
+def watershow_start(songs_playlist):
+    '''
+    Start the show and run through playlist once
+    :param songs_playlist: list of songs
+    :return:
+    '''
 
-    # Start pump
-    if not Pump[P_STATE]:
-        PumpCtl(True)
-    
-    # Set up audio
-    AudioMixer = aa.Mixer()
-    vol = AudioMixer.getvolume()
-    AudioVolume = int(vol[0])
-    AudioMixer.setvolume(RunVolume)
+    global CAN_PLAY
+    global SONG_PAUSED
+    global NEXT_SONG
 
-    WavFile = wave.open(WaterShowFile_Audio,'r')
-    sample_rate = WavFile.getframerate()
-    no_channels = WavFile.getnchannels()
-    chunk = 4096
-    AudioOutput = aa.PCM(aa.PCM_PLAYBACK, aa.PCM_NORMAL)
-    AudioOutput.setchannels(no_channels)
-    AudioOutput.setrate(sample_rate)
-    AudioOutput.setformat(aa.PCM_FORMAT_S16_LE)
-    AudioOutput.setperiodsize(chunk)
+    # Loop through the playlist and play each song
+    for song_index in range(0, len(songs_playlist)):
 
-    WavData = WavFile.readframes(chunk)
-    StartTime = int(round(time.time()*1000))
-    CurrentChunkNum = 1 #ignore the header line
-    CurTime = 0
-  
-    while sys.getsizeof(WavData) > 16000 and STATE['ISRUNNING']:
-        WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
-        CurTime = int(round(time.time()*1000)) - StartTime
-        print(WavChunkIntensity)
-        IntensitySend(WavChunkIntensity,CurTime)
-        AudioOutput.write(WavData)
-        WavData = WavFile.readframes(chunk)
+        # Start pump
+        if not Pump[P_STATE]:
+            PumpCtl(True)
 
-    WavChunkIntensity[:]
-    BASS['IsRunning']=False
-    BASS['CurTriggerTime']=0
-    BASS['CurCycleCount']=0
-    CHORUS['IsRunning']=False
-    CHORUS['CurTriggerTime']=0
-    CHORUS['CurCycleCount']=0
-    #STATE['ISRUNNING']=False
-    AudioOutput.close()
-    AudioMixer.setvolume(AudioVolume)
-    WavFile.close()
+        StartTime = int(round(time.time()*1000))
+        CurrentChunkNum = 1 #ignore the header line
+        CurTime = 0
+
+        # init Audio File object
+        audio_file = RogyAudio.AudioFile(songs_playlist[song_index])
+        print("Playing:", playlist[song_index], "->", audio_file.nframes, audio_file.nchannels,
+              audio_file.frame_rate, audio_file.sample_width)
+
+        # Run Audio analysis on it, i.e. FFT
+        audio_data = audio_file.read_analyze_chunk(frqs=Freqs, wghts=Freqweighting)
+        chunk_counter = 1
+        # print(sys.getsizeof(audio_data))
+
+        while sys.getsizeof(audio_data) > 16000 and STATE['ISRUNNING']:
+
+            # WavChunkIntensity=FFT.calculate_levels(WavData,chunk,sample_rate,Freqs,Freqweighting)
+            # print(WavChunkIntensity)
+            # IntensitySend(WavChunkIntensity,CurTime)
+            # AudioOutput.write(WavData)
+            # WavData = WavFile.readframes(chunk)
+
+            CurTime = int(round(time.time()*1000)) - StartTime
+            check_signal_trigger(audio_file.chunk_levels, CurTime)
+
+            if audio_file.write_chunk(audio_data) is True:
+                audio_data = audio_file.read_analyze_chunk(frqs=Freqs, wghts=Freqweighting)
+            else:
+                raise IOError
+
+            chunk_counter += 1
+            while SONG_PAUSED is True:
+                time.sleep(1)
+
+            if NEXT_SONG is True:
+                break
+
+        audio_file.stop()
+        BASS['IsRunning'] = False
+        BASS['CurTriggerTime'] = 0
+        BASS['CurCycleCount'] = 0
+        CHORUS['IsRunning'] = False
+        CHORUS['CurTriggerTime'] = 0
+        CHORUS['CurCycleCount'] = 0
+        #STATE['ISRUNNING']=False
+
     PumpCtl(False)
-    InitSolenoids()
+    init_solenoids()
 
 
-#######################################
-def WaterShowStop ():
+def watershow_stop():
 
     for i in range(0, NumSolenoids):
         # Add CurrentStatus and DoToggle
         Solenoids[i].extend([V_CLOSE, False])
 
 
-#######################################
 def clean_exit():
 
+    watershow_stop()
     GPIO.cleanup()
     exit()
   
-'''
-#######################################
-def Usage():
-  print("WaterShowPi.py Directory")
-  exit()
-
-#######################################
-
-if len(sys.argv) < 2 :
-  Usage()
-
-WaterShowDir = []
-if (sys.argv[1][len(sys.argv[1])-1] == '/') :
-    WaterShowDir = sys.argv[1][0:len(sys.argv[1])-1]
-else :
-  WaterShowDir = sys.argv[1]
-  
-WaterShowFile_FFT = WaterShowDir + "/" + WaterShowDir + ".fft"
-WaterShowFile_Sequence = WaterShowDir + "/" + WaterShowDir + ".seq"
-WaterShowFile_Audio = WaterShowDir + "/" + WaterShowDir + ".wav"
-
-if os.path.exists(WaterShowFile_FFT) :
-  print ("FFT file is: ",WaterShowFile_FFT)
-else :
-  print ("Not a FFT file: ",WaterShowFile_FFT) 
-  #exit()
-
-if os.path.exists(WaterShowFile_Sequence) :
-  print ("Sequence file is: ",WaterShowFile_Sequence)
-  with open(WaterShowFile_Sequence,'r') as SequenceFile:
-    SequenceData = SequenceFile.read().splitlines()
-  del SequenceData[0]
-
-else:
-    print ("Not a valid Sequence File: ",WaterShowFile_Sequence) 
-    SequenceData = []
-    #exit()
-
-if os.path.exists(WaterShowFile_Audio):
-    print ("Audio file is: ",WaterShowFile_Audio)
-else:
-    print ("Not a valid Audio File: ",WaterShowFile_Audio) 
-    exit()
-
-'''
-
-InitGPIO()
-InitSolenoids()
-
 
 if __name__ == '__main__':
     '''
@@ -413,35 +451,17 @@ if __name__ == '__main__':
 
     try:
 
-        # Load in config
-        cfg = read_config()
-
-        # Get some control of the buttons
-        # setup_buttons(pause_gpio_pin=cfg['pause_gpio_pin'], play_gpio_pin=cfg['play_gpio_pin'])
-
-        # Load in sequencer
-        sr = RogySequencer.Sequencer(cfgfile='XmasSweaterShowPi.cfg', outputs_enable=cfg['outputs_enable'],
-                                     debug=cfg['debug'])
-
-        # Frequencies we're interested in
-        signals = RogyAudio.Signals()
-        freqs = signals.frequencies
-        weights = signals.weights
-        fidelities = signals.fidelities
-
-        print("Using Frequencies:", freqs)
-        print("Using Weights:", weights)
-        print("Using Fidelities:", fidelities)
+        # Init GPIO and SOlenoids
+        init_gpio()
+        init_solenoids()
 
         # Build a playlist of songs
-        playlist = build_playlist('/home/pi/RogySweater/songs')
+        playlist = RogyAudio.build_playlist('/home/pi/WaterShowPi/songs')
 
         loop_counter = 0
         while True:
             STATE['ISRUNNING'] = True
-            WaterShowStart()
-            # xmas_sweater_show_start()
-
+            watershow_start(playlist)
             time.sleep(2)
             loop_counter += 1
 
